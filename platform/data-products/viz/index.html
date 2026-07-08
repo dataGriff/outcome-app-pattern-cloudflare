@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Colour Data Products</title>
+    <style>
+      body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;margin:2rem;max-width:52rem}
+      h1{margin-bottom:.25rem}
+      .muted{color:#888;font-size:.9rem}
+      .tabs{display:flex;gap:.5rem;margin:1rem 0}
+      .tabs button{font-size:1rem;padding:.5rem 1rem;border:1px solid #ccc;border-radius:.4rem;background:#f4f4f4;cursor:pointer}
+      .tabs button.active{background:#111;color:#fff;border-color:#111}
+      .metrics{display:flex;gap:1rem;margin:1rem 0}
+      .metric{border:1px solid #eee;border-radius:.5rem;padding:.75rem 1.25rem;min-width:6rem}
+      .metric .value{font-size:1.6rem;font-weight:700}
+      table{border-collapse:collapse;width:100%;margin:1rem 0}
+      th,td{text-align:left;padding:.35rem .6rem;border-bottom:1px solid #eee;font-variant-numeric:tabular-nums}
+      canvas{max-height:320px}
+      .warn{background:#fff7e0;border:1px solid #f0d580;border-radius:.4rem;padding:.6rem 1rem}
+      button.refresh{font-size:.9rem;padding:.4rem .8rem}
+    </style>
+  </head>
+  <body>
+    <h1>Colour Data Products</h1>
+    <p class="muted">Analytical reads come from the data products in object storage — never from
+      the domain's operational store. <button id="refresh" class="refresh">🔄 Refresh</button>
+      <span id="refreshed" class="muted"></span></p>
+
+    <div class="tabs">
+      <button id="tab-operational" class="active">Operational Awareness</button>
+      <button id="tab-performance">Performance</button>
+    </div>
+
+    <section id="pane-operational">
+      <p class="muted">React to what's happening now — every colour generation, in granular detail
+        (the <code>colour-operational</code> product, raw JSONL).</p>
+      <div id="op-content"></div>
+      <canvas id="op-chart"></canvas>
+    </section>
+
+    <section id="pane-performance" hidden>
+      <p class="muted">How colours trend over time, and where things stand right now
+        (the <code>colour-performance</code> product, curated Parquet).</p>
+      <div id="perf-content"></div>
+      <canvas id="perf-chart"></canvas>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script>
+      const COLOUR_MAP = { green: '#30a46c', amber: '#ffb224', red: '#e5484d' };
+      let opChart = null, perfChart = null;
+
+      function tab(active) {
+        for (const name of ['operational', 'performance']) {
+          document.getElementById('tab-' + name).classList.toggle('active', name === active);
+          document.getElementById('pane-' + name).hidden = name !== active;
+        }
+      }
+      document.getElementById('tab-operational').onclick = () => tab('operational');
+      document.getElementById('tab-performance').onclick = () => tab('performance');
+
+      async function loadOperational() {
+        const rows = await (await fetch('/products/colour-operational')).json();
+        const content = document.getElementById('op-content');
+        if (!rows.length) {
+          content.innerHTML = '<p class="warn">No events yet. Generate a colour to see activity.</p>';
+          if (opChart) { opChart.destroy(); opChart = null; }
+          return;
+        }
+        const latest = rows.slice(0, 10).map(r =>
+          `<tr><td>${r.colour}</td><td>${r.timestamp}</td></tr>`).join('');
+        content.innerHTML =
+          `<div class="metrics"><div class="metric"><div class="value">${rows.length}</div>Total events (all time)</div></div>` +
+          `<strong>Latest activity</strong><table><tr><th>colour</th><th>timestamp</th></tr>${latest}</table>`;
+        const counts = {};
+        for (const r of rows) counts[r.colour] = (counts[r.colour] || 0) + 1;
+        const labels = Object.keys(counts);
+        if (opChart) opChart.destroy();
+        opChart = new Chart(document.getElementById('op-chart'), {
+          type: 'bar',
+          data: { labels, datasets: [{ data: labels.map(l => counts[l]),
+            backgroundColor: labels.map(l => COLOUR_MAP[l] || '#888'), borderColor: '#000', borderWidth: 1 }] },
+          options: { plugins: { legend: { display: false } } },
+        });
+      }
+
+      async function loadPerformance() {
+        const rows = await (await fetch('/products/colour-performance')).json();
+        const content = document.getElementById('perf-content');
+        if (!rows.length) {
+          content.innerHTML = '<p class="warn">No aggregate yet. The summariser writes colour-performance on its next run.</p>';
+          if (perfChart) { perfChart.destroy(); perfChart = null; }
+          return;
+        }
+        const latestDate = rows.map(r => r.date).sort().at(-1);
+        const today = rows.filter(r => r.date === latestDate);
+        const metrics = Object.keys(COLOUR_MAP).map(colour => {
+          const value = today.filter(r => r.colour === colour).reduce((s, r) => s + r.count, 0);
+          return `<div class="metric"><div class="value">${value}</div>${colour[0].toUpperCase() + colour.slice(1)}</div>`;
+        }).join('');
+        content.innerHTML = `<strong>Current status — ${latestDate}</strong><div class="metrics">${metrics}</div><strong>Daily trend</strong>`;
+        const dates = [...new Set(rows.map(r => r.date))].sort();
+        const datasets = Object.keys(COLOUR_MAP).map(colour => ({
+          label: colour,
+          data: dates.map(d => rows.filter(r => r.date === d && r.colour === colour).reduce((s, r) => s + r.count, 0)),
+          backgroundColor: COLOUR_MAP[colour],
+        }));
+        if (perfChart) perfChart.destroy();
+        perfChart = new Chart(document.getElementById('perf-chart'), {
+          type: 'bar', data: { labels: dates, datasets },
+        });
+      }
+
+      async function refresh() {
+        await Promise.all([loadOperational(), loadPerformance()]);
+        document.getElementById('refreshed').textContent = 'Last refreshed: ' + new Date().toLocaleTimeString();
+      }
+      document.getElementById('refresh').onclick = refresh;
+      refresh();
+    </script>
+  </body>
+</html>

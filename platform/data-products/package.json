@@ -1,0 +1,19 @@
+{
+  "name": "colour-data-products",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "hono": "^4.12.28",
+    "hyparquet": "^1.26.2",
+    "hyparquet-writer": "^0.16.1"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.2",
+    "@cloudflare/workers-types": "^5.20260708.1",
+    "vitest": "^4.1.0",
+    "yaml": "^2.9.0"
+  }
+}

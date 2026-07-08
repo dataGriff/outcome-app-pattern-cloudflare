@@ -1,0 +1,22 @@
+{
+  // The platform zone's data-products worker: the streaming role (queue
+  // consumer → raw JSONL product), the summariser (cron → curated Parquet
+  // product), the products read surface, and the visualisation page.
+  "name": "colour-data-products",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "dev": { "port": 8788 },
+  "observability": { "enabled": true },
+  "assets": { "directory": "viz" },
+  "r2_buckets": [
+    { "binding": "OBJECT_STORAGE", "bucket_name": "colour-data" }
+  ],
+  "queues": {
+    "consumers": [
+      { "queue": "colour-events", "max_batch_size": 25, "max_batch_timeout": 5 }
+    ]
+  },
+  // Matches the cadence declared in colour-performance.contract.yaml
+  // (servicelevels.frequency.cron). 1 of the free plan's 5 account crons.
+  "triggers": { "crons": ["0 * * * *"] }
+}
