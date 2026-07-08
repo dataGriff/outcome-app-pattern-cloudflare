@@ -91,6 +91,15 @@ tasks:
       - task: gen:types
       - git diff --exit-code domain/api/types experiences/mobile/src/api
 
+  deploy:
+    desc: "Apply remote D1 migrations, then deploy all four workers (domain first, so the others' service bindings resolve). Needs CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID."
+    cmds:
+      - npx wrangler d1 migrations apply colour --remote -c domain/api/wrangler.jsonc
+      - npx wrangler deploy -c domain/api/wrangler.jsonc
+      - npx wrangler deploy -c platform/data-products/wrangler.jsonc
+      - npx wrangler deploy -c experiences/web/wrangler.jsonc
+      - npx wrangler deploy -c experiences/agent/wrangler.jsonc
+
   bootstrap:cloud:
     desc: One-time creation of the Cloudflare resources (D1, Queue, R2) — paste the D1 id into domain/api/wrangler.jsonc
     cmds:
@@ -125,6 +134,13 @@ tasks:
   lint:all:
     desc: Lint the OpenAPI, AsyncAPI and data contracts
     deps: [lint:openapi, lint:asyncapi, lint:datacontract]
+
+  datacontract:test:
+    desc: "Real datacontract test against the deployed R2 (post-deploy). Needs DATACONTRACT_S3_* env for a read-only R2 S3 key."
+    cmds:
+      - python3 -m pip install --quiet 'datacontract-cli[s3]' 'ibis-framework[duckdb]' duckdb
+      - datacontract test domain/contracts/data/colour-operational.contract.yaml
+      - datacontract test domain/contracts/data/colour-performance.contract.yaml
 
   gen:types:
     desc: Generate server handler types and the mobile client from the committed OpenAPI contract (one spec, two consumers)

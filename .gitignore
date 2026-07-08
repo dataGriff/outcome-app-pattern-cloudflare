@@ -10,3 +10,4 @@ coverage/
 .expo/
 .task/
 .schemathesis/
+.hypothesis/

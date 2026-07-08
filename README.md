@@ -29,10 +29,40 @@ Every role from the pattern keeps its name; only the implementation underneath i
 | mobile experience | Expo/React Native | unchanged (points at the deployed API) |
 | agent experience | MCP server (stdio) | `colour-agent` Worker (MCP over streamable-http) |
 
-## Status
+## Run it locally
 
-Being built contract-first, phase by phase (contracts → infrastructure → behaviour →
-data products → experiences → CI). Quickstart and deployed URLs land with the final phase.
+One command brings up all four workers, each on its own port, wired by Wrangler's
+local dev registry (service bindings **and** cross-process queue delivery):
+
+```bash
+npm ci
+task up      # domain :8787  data-products :8788  web :8789  agent :8790
+```
+
+Then open the web channel at http://localhost:8789, run the mobile app with
+`task run:mobile`, or point an MCP client at http://localhost:8790/mcp. `task ci`
+runs the whole hermetic suite (contract lints, generated-types staleness,
+typecheck, unit/integration/data-product/agent tests, and Schemathesis).
+
+## Deploying
+
+Deploy is a single `task deploy` (remote D1 migrations, then domain → platform →
+web → agent), run automatically by CI on push to `main`. It needs some one-time
+setup on the Cloudflare account:
+
+1. **Enable R2** once in the Cloudflare dashboard (the free tier still requires
+   the initial opt-in), then `task bootstrap:cloud` to create the D1 database,
+   the queue and the `colour-data` bucket.
+2. **GitHub secrets:** `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and a
+   read-only R2 S3 key pair (`R2_S3_ACCESS_KEY_ID`, `R2_S3_SECRET_ACCESS_KEY`)
+   for the post-deploy `datacontract test`.
+3. **GitHub variable:** `WORKERS_SUBDOMAIN` (your `*.workers.dev` subdomain) so
+   the verify job can reach the deployed channels.
+
+The CI `verify` job then smoke-tests the deployed stack end to end — generate,
+latest, the SSE feed, cross-process queue delivery to the operational product,
+the Parquet summariser — and runs the real `datacontract test` against both
+products over R2's S3 API.
 
 ## Contracts
 
