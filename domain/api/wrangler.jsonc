@@ -1,0 +1,33 @@
+{
+  // The behaviour API — the one owner of the colour domain's behaviour.
+  // Bindings are role-named (operational-store, events, relay, stream); the
+  // honest implementation names live in the resource declarations below.
+  "name": "colour-behaviour-service",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "dev": { "port": 8787 },
+  "observability": { "enabled": true },
+  "rules": [{ "type": "Text", "globs": ["**/*.yaml"], "fallthrough": true }],
+  "d1_databases": [
+    {
+      "binding": "OPERATIONAL_STORE",
+      "database_name": "colour",
+      "database_id": "ac0ec552-e697-4af8-a383-669f4c63599d",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "queues": {
+    "producers": [{ "binding": "EVENTS", "queue": "colour-events" }]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "OUTBOX_RELAY", "class_name": "OutboxRelayDO" },
+      { "name": "STREAM", "class_name": "StreamDO" }
+    ]
+  },
+  // Free plan requires SQLite-backed Durable Object classes.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["OutboxRelayDO", "StreamDO"] }],
+  "vars": {
+    "OUTBOX_RETENTION_SECONDS": "3600"
+  }
+}

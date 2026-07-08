@@ -1,5 +1,61 @@
 version: '3'
 tasks:
+  up:
+    desc: Run the stack locally (one wrangler dev over every worker config)
+    cmds:
+      - npx wrangler d1 migrations apply colour --local -c domain/api/wrangler.jsonc
+      - npx wrangler dev -c domain/api/wrangler.jsonc --test-scheduled
+
+  post:api:
+    desc: Perform a simple POST request to the /colours endpoint
+    cmds:
+      - curl -X POST http://localhost:8787/colours
+
+  typecheck:
+    desc: Typecheck every workspace against the generated contract types
+    cmds:
+      - npx tsc -p domain/api
+
+  test:unit:
+    desc: Behaviour-service unit tests (hermetic, in workerd via vitest-pool-workers)
+    dir: domain/api
+    cmds:
+      - npx vitest run tests/unit
+
+  test:integration:
+    desc: "Runtime contract conformance: AsyncAPI event + outbox round-trip + spec drift (hermetic, in workerd)"
+    dir: domain/api
+    cmds:
+      - npx vitest run tests/integration
+
+  test:conformance:
+    desc: OpenAPI request-conformance fuzzing (Schemathesis) against wrangler dev
+    cmds:
+      - python3 -m pip install --quiet schemathesis
+      - npx wrangler d1 migrations apply colour --local -c domain/api/wrangler.jsonc
+      - |
+        npx wrangler dev -c domain/api/wrangler.jsonc > /tmp/wrangler-conformance.log 2>&1 &
+        DEV_PID=$!
+        trap "kill $DEV_PID 2>/dev/null" EXIT
+        for i in $(seq 1 60); do curl -sf http://localhost:8787/openapi.json > /dev/null && break; sleep 1; done
+        schemathesis run domain/contracts/api/behaviour-service.openapi.yaml --url http://localhost:8787 --exclude-path /events/stream
+
+  ci:
+    desc: Lint all three contracts + typecheck, unit, integration and conformance tests
+    cmds:
+      - task: lint:all
+      - task: gen:check
+      - task: typecheck
+      - task: test:unit
+      - task: test:integration
+      - task: test:conformance
+
+  gen:check:
+    desc: Fail if the generated types are stale against the committed contract
+    cmds:
+      - task: gen:types
+      - git diff --exit-code domain/api/types experiences/mobile/src/api
+
   bootstrap:cloud:
     desc: One-time creation of the Cloudflare resources (D1, Queue, R2) — paste the D1 id into domain/api/wrangler.jsonc
     cmds:
