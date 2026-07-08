@@ -1,0 +1,16 @@
+{
+  // The web experience: static assets + a same-origin proxy to the one
+  // behaviour API. Both the POST write and the SSE feed go through the proxy so
+  // the browser never needs CORS — the domain API is reached via a service
+  // binding (DOMAIN_API), the role name; the honest target is below.
+  "name": "colour-web",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "dev": { "port": 8789 },
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./public",
+    "run_worker_first": ["/api/*"]
+  },
+  "services": [{ "binding": "DOMAIN_API", "service": "colour-behaviour-service" }]
+}

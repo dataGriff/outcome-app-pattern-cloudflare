@@ -1,10 +1,27 @@
 version: '3'
 tasks:
   up:
-    desc: Run the stack locally (one wrangler dev over every worker config)
+    desc: Run the whole stack locally — one wrangler dev per worker, on its own port
     cmds:
       - npx wrangler d1 migrations apply colour --local -c domain/api/wrangler.jsonc
-      - npx wrangler dev -c domain/api/wrangler.jsonc --test-scheduled
+      # Four separate dev processes so each channel has its own port (domain 8787,
+      # data-products 8788, web 8789, agent 8790). Wrangler's local dev registry
+      # wires the cross-process bindings — service bindings AND queue delivery —
+      # so a colour POSTed to the domain flows through to the data-product consumer.
+      # Each needs a distinct --inspector-port or they collide on 9229.
+      - |
+        trap 'kill 0' EXIT
+        npx wrangler dev --test-scheduled -c domain/api/wrangler.jsonc --port 8787 --inspector-port 9229 &
+        npx wrangler dev --test-scheduled -c platform/data-products/wrangler.jsonc --port 8788 --inspector-port 9230 &
+        npx wrangler dev -c experiences/web/wrangler.jsonc --port 8789 --inspector-port 9231 &
+        npx wrangler dev -c experiences/agent/wrangler.jsonc --port 8790 --inspector-port 9232 &
+        wait
+
+  run:mobile:
+    desc: Run the Expo mobile experience against the local domain worker
+    dir: experiences/mobile
+    cmds:
+      - npx expo start
 
   post:api:
     desc: Perform a simple POST request to the /colours endpoint
@@ -12,9 +29,13 @@ tasks:
       - curl -X POST http://localhost:8787/colours
 
   typecheck:
-    desc: Typecheck every workspace against the generated contract types
+    desc: Typecheck every worker + the mobile app against the generated contract types
     cmds:
       - npx tsc -p domain/api
+      - npx tsc -p platform/data-products
+      - npx tsc -p experiences/web
+      - npx tsc -p experiences/agent
+      - npx tsc -p experiences/mobile
 
   test:unit:
     desc: Behaviour-service unit tests (hermetic, in workerd via vitest-pool-workers)
@@ -27,6 +48,18 @@ tasks:
     dir: domain/api
     cmds:
       - npx vitest run tests/integration
+
+  test:products:
+    desc: "Data-product structural conformance against both data contracts (hermetic, in workerd)"
+    dir: platform/data-products
+    cmds:
+      - npx vitest run
+
+  test:agent:
+    desc: "Agent MCP tools over the real streamable-http transport (hermetic, in workerd)"
+    dir: experiences/agent
+    cmds:
+      - npx vitest run
 
   test:conformance:
     desc: OpenAPI request-conformance fuzzing (Schemathesis) against wrangler dev
@@ -48,6 +81,8 @@ tasks:
       - task: typecheck
       - task: test:unit
       - task: test:integration
+      - task: test:products
+      - task: test:agent
       - task: test:conformance
 
   gen:check:

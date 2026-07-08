@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Outcome App — Web experience</title>
+    <style>
+      body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;margin:2rem;max-width:40rem}
+      button{font-size:1rem;padding:.5rem 1rem}
+      .pill{display:inline-block;padding:.5rem 1rem;border-radius:999px;background:#eee;margin-left:1rem}
+      ul{list-style:none;padding:0}
+      li{padding:.4rem .6rem;border-radius:.4rem;margin:.25rem 0;background:#f4f4f4;font-variant-numeric:tabular-nums}
+      .dot{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;margin-right:.5rem;vertical-align:middle}
+      .muted{color:#888}
+    </style>
+  </head>
+  <body>
+    <h1>Web experience</h1>
+    <p>The <strong>web</strong> channel consumes the one behaviour API. Generating a
+      colour calls <code>POST /colours</code>; the live feed subscribes to the same
+      <code>colour.generated</code> events over SSE — the mobile and agent experiences use these same endpoints.</p>
+
+    <button id="gen">Generate colour</button>
+    <span id="result" class="pill">—</span>
+
+    <h2>Live events <span id="conn" class="muted">(connecting…)</span></h2>
+    <ul id="feed"></ul>
+
+    <script>
+      const colours = { red: '#e5484d', amber: '#ffb224', green: '#30a46c' };
+      const btn = document.getElementById('gen');
+      const res = document.getElementById('result');
+      const feed = document.getElementById('feed');
+      const conn = document.getElementById('conn');
+
+      // POST goes through the same-origin proxy (avoids CORS on writes).
+      btn.addEventListener('click', async () => {
+        res.textContent = '⏳ generating...';
+        try {
+          const r = await fetch('/api/colours', { method: 'POST' });
+          if (!r.ok) throw new Error('network');
+          const j = await r.json();
+          res.textContent = j.colour + ' @ ' + (j.timestamp || '');
+        } catch (e) {
+          res.textContent = 'error';
+        }
+      });
+
+      // Live feed also subscribes same-origin; the worker proxies the API's SSE
+      // bridge, so the browser never touches CORS. (Mobile still shows direct CORS.)
+      const es = new EventSource('/api/events/stream');
+      es.onopen = () => { conn.textContent = '(live)'; };
+      es.onerror = () => { conn.textContent = '(reconnecting…)'; };
+      es.onmessage = (m) => {
+        const ev = JSON.parse(m.data);
+        const li = document.createElement('li');
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        dot.style.background = colours[ev.colour] || '#888';
+        li.appendChild(dot);
+        li.appendChild(document.createTextNode(ev.colour + '  ' + ev.timestamp));
+        feed.prepend(li);
+        while (feed.children.length > 10) feed.removeChild(feed.lastChild);
+      };
+    </script>
+  </body>
+</html>

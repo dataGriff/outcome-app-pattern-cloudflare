@@ -1,0 +1,16 @@
+{
+  // The agent experience: the one behaviour API as MCP tools. Reaches the
+  // domain over a service binding (DOMAIN_API); McpAgent sessions live in a
+  // SQLite-backed Durable Object (free-plan requirement).
+  "name": "colour-agent",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "dev": { "port": 8790 },
+  "observability": { "enabled": true },
+  "services": [{ "binding": "DOMAIN_API", "service": "colour-behaviour-service" }],
+  "durable_objects": {
+    "bindings": [{ "name": "MCP_OBJECT", "class_name": "ColourAgent" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ColourAgent"] }]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "outcome-app-mobile",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web",
+    "export:web": "expo export --platform web"
+  },
+  "dependencies": {
+    "expo": "~53.0.0",
+    "expo-status-bar": "~2.2.3",
+    "@expo/metro-runtime": "~5.0.4",
+    "openapi-fetch": "^0.13.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-native": "0.79.5",
+    "react-native-web": "~0.20.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.0.10",
+    "typescript": "~5.8.3"
+  },
+  "private": true
+}

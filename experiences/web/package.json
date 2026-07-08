@@ -1,0 +1,9 @@
+{
+  "name": "@outcome-app/web",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260708.1",
+    "wrangler": "^4.108.0"
+  }
+}
