@@ -1,0 +1,46 @@
+dataContractSpecification: 1.2.0
+id: urn:outcome-app-pattern:data-product:colour-operational
+info:
+  title: Colour — Operational Awareness
+  version: 1.0.0
+  description: >
+    Purpose: operational awareness of colour generation — see and react to what is
+    happening now, event by event. Because this is the durable, per-event record, it
+    also serves long-term granular detail: audit, deep-dive, and reprocessing. This is
+    the raw data product, landed as append-only JSONL with the transport envelope
+    stripped.
+  owner: Data Team
+  contact:
+    name: Data Team
+    email: data@example.com
+
+servers:
+  raw:
+    type: s3
+    location: s3://colour-data/colour-operational/*.jsonl
+    endpointUrl: https://f0884fe6c7811fc0e6edc6f6cdcd95bb.r2.cloudflarestorage.com
+    format: json
+    delimiter: new_line
+
+models:
+  colour_operational:
+    description: One record per generated colour.
+    type: table
+    fields:
+      colour:
+        type: string
+        description: The generated colour.
+        enum: [red, amber, green]
+      timestamp:
+        type: string
+        format: date-time
+        description: The time the colour was generated.
+
+servicelevels:
+  freshness:
+    description: The stream is available within 1 hour of the event.
+    threshold: 1h
+    timestampField: colour_operational.timestamp
+  retention:
+    description: The granular record is retained for one year for long-term detail.
+    period: P1Y

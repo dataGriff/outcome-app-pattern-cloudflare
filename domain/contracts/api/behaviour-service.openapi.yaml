@@ -1,0 +1,94 @@
+openapi: 3.1.0
+info:
+  title: Colour Behaviour Service
+  version: 1.0.0
+  description: |
+    The source-aligned domain's HTTP contract. This spec is authored and owned
+    here as the source of truth; the Workers implementation must conform to it
+    (verified by the Schemathesis conformance test and the spec-drift test) and
+    both the server's handler types and the experiences' typed client are
+    generated from it.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: http://localhost:8787
+    description: Local behaviour service (wrangler dev)
+paths:
+  /colours:
+    post:
+      operationId: createColour
+      summary: Generate a colour
+      description: Generate a colour, persist it, and enqueue a colour.generated event.
+      responses:
+        "200":
+          description: The generated colour.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ColourEvent"
+    get:
+      operationId: colourHistory
+      summary: Recent colours (most recent first)
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Recent colours, most recent first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ColourEvent"
+        "422":
+          description: Invalid query parameter.
+  /colours/latest:
+    get:
+      operationId: latestColour
+      summary: The most recently generated colour
+      responses:
+        "200":
+          description: The latest colour.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ColourEvent"
+        "404":
+          description: No colours generated yet.
+  /events/stream:
+    get:
+      operationId: eventsStream
+      summary: Server-Sent Events feed of colour.generated events
+      description: |
+        Long-lived text/event-stream. Consumed by browser EventSource, the
+        mobile app, and the agent. Excluded from request-conformance fuzzing
+        because it never terminates.
+      responses:
+        "200":
+          description: An SSE stream of colour payloads.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+components:
+  schemas:
+    ColourEvent:
+      type: object
+      required:
+        - colour
+        - timestamp
+      properties:
+        colour:
+          type: string
+          enum: [red, amber, green]
+        timestamp:
+          type: string
+          format: date-time

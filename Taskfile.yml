@@ -1,0 +1,45 @@
+version: '3'
+tasks:
+  bootstrap:cloud:
+    desc: One-time creation of the Cloudflare resources (D1, Queue, R2) — paste the D1 id into domain/api/wrangler.jsonc
+    cmds:
+      - npx wrangler d1 create colour
+      - npx wrangler queues create colour-events
+      - npx wrangler r2 bucket create colour-data
+
+  lint:openapi:
+    desc: Validate the OpenAPI contract (source of truth for the HTTP API)
+    sources:
+      - domain/contracts/api/behaviour-service.openapi.yaml
+    cmds:
+      - python3 -m pip install 'openapi-spec-validator' && openapi-spec-validator domain/contracts/api/behaviour-service.openapi.yaml
+
+  lint:asyncapi:
+    desc: Lint the AsyncAPI contract (requires asyncapi CLI)
+    sources:
+      - domain/contracts/api/behaviour-service.asyncapi.yaml
+    cmds:
+      - npx -y @asyncapi/cli@latest validate domain/contracts/api/behaviour-service.asyncapi.yaml
+
+  lint:datacontract:
+    desc: Lint the data-product contracts (requires datacontract CLI)
+    sources:
+      - domain/contracts/data/colour-operational.contract.yaml
+      - domain/contracts/data/colour-performance.contract.yaml
+    cmds:
+      - python3 -m pip install 'datacontract-cli'
+      - datacontract lint domain/contracts/data/colour-operational.contract.yaml
+      - datacontract lint domain/contracts/data/colour-performance.contract.yaml
+
+  lint:all:
+    desc: Lint the OpenAPI, AsyncAPI and data contracts
+    deps: [lint:openapi, lint:asyncapi, lint:datacontract]
+
+  gen:types:
+    desc: Generate server handler types and the mobile client from the committed OpenAPI contract (one spec, two consumers)
+    sources:
+      - domain/contracts/api/behaviour-service.openapi.yaml
+    cmds:
+      - mkdir -p domain/api/types experiences/mobile/src/api
+      - npx openapi-typescript domain/contracts/api/behaviour-service.openapi.yaml -o domain/api/types/api.d.ts
+      - npx openapi-typescript domain/contracts/api/behaviour-service.openapi.yaml -o experiences/mobile/src/api/schema.ts
