@@ -44,6 +44,28 @@ Then open the web channel at http://localhost:8789, run the mobile app with
 runs the whole hermetic suite (contract lints, generated-types staleness,
 typecheck, unit/integration/data-product/agent tests, and Schemathesis).
 
+## Storage model
+
+The raw operational product is the durable **system of record** — kept forever,
+never re-scanned wholesale. Both products live in the one `colour-data` R2 bucket:
+
+```
+colour-operational/dt=YYYY-MM-DD/<ts>-<id>.jsonl   # bronze — immutable, date-partitioned
+colour-operational/dt=YYYY-MM-DD/part-0000.jsonl   #   sealed day, fragments compacted to one
+colour-performance/dt=YYYY-MM-DD/part.parquet      # silver — per-day curated Parquet
+_state/summariser.json                             # watermark: { "sealedThrough": "YYYY-MM-DD" }
+```
+
+The summariser is **incremental**: each run recomputes only the open window
+(today + a grace day, `SUMMARISER_OPEN_DAYS`, default 2), then seals each closed
+day exactly once — writes its per-day Parquet, compacts its raw fragments, and
+advances the watermark. Sealed days are never listed or read again, so per-run
+work is bounded regardless of how large the archive grows. Analytical reads hit
+the curated per-day Parquets (and the recent operational window); the full
+archive is an occasional audit read straight from R2. Cold-tiering sealed
+partitions to R2 Infrequent Access via a lifecycle rule is the paid production
+lever (free plan does the tiering logically — a sealed partition you simply don't read).
+
 ## Deploying
 
 Deploy is a single `task deploy` (remote D1 migrations, then domain → platform →
