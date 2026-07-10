@@ -23,6 +23,7 @@ export default function App() {
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [conn, setConn] = useState('connecting…');
   const [notice, setNotice] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   useEffect(() => {
     client
@@ -45,7 +46,11 @@ export default function App() {
     return () => es.close();
   }, []);
 
+  // Guard against double-taps: a second tap while a POST is in flight would
+  // generate a second, distinct colour event. One tap, one event.
   const generate = async () => {
+    if (pending) return;
+    setPending(true);
     try {
       const { data, response } = await client.POST('/colours');
       if (response.status === 429) {
@@ -59,6 +64,8 @@ export default function App() {
       }
     } catch (e) {
       setNotice('Network error — please try again');
+    } finally {
+      setPending(false);
     }
   };
 
@@ -70,7 +77,7 @@ export default function App() {
         generate, SSE for the live feed.
       </Text>
 
-      <Pressable style={styles.btn} onPress={generate}>
+      <Pressable style={styles.btn} onPress={generate} disabled={pending}>
         <Text style={styles.btnText}>Generate colour</Text>
       </Pressable>
 
