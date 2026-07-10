@@ -57,6 +57,44 @@ so the hermetic gates aren't throttled. The limits live in `domain/api/wrangler.
 (`unsafe.bindings`); tune them there. WAF/dashboard rate-limiting rules don't apply to
 `*.workers.dev`, so this is enforced in-Worker.
 
-For a stricter, globally-consistent limit you'd move to a Durable Object token bucket, and for the
-UI channels a [Turnstile](https://developers.cloudflare.com/turnstile/) challenge on the generate
-button stops bots — both are deliberate next steps, not needed for the demo.
+Every channel surfaces the 429 to its user: web/mobile show a "rate limited — try again in Ns"
+notice (the API exposes `Retry-After` via CORS so the cross-origin mobile channel can read it), and
+the agent tool returns an `isError` result telling the model to back off.
+
+For a stricter, globally-consistent limit you'd move to a Durable Object token bucket.
+
+## Bot protection (Turnstile)
+
+Rate limiting bounds *cost*; [Turnstile](https://developers.cloudflare.com/turnstile/) keeps casual
+bots off the public **web** UI. The web worker verifies a Turnstile token before it forwards a
+generation to the behaviour API — it's **config-gated and inert until you provision keys**:
+
+1. Create a Turnstile widget in the Cloudflare dashboard (Turnstile → Add site) for your web
+   channel's hostname. You get a **sitekey** (public) and a **secret** (private).
+2. Put the sitekey in `experiences/web/public/index.html` (replace the always-pass **test** sitekey
+   `1x00000000000000000000AA` in the `cf-turnstile` widget).
+3. Set the secret on the web worker: `wrangler secret put TURNSTILE_SECRET -c experiences/web/wrangler.jsonc`.
+
+With the secret set, the worker calls Cloudflare's siteverify and returns **403** on failure (the
+UI shows "bot check failed — please retry"). Unset, the widget still renders but nothing is enforced,
+so the demo runs without keys.
+
+**Scope, honestly:** Turnstile only guards the web channel. It can't gate the **agent** (an LLM
+can't solve a challenge) or native **mobile**, and a bot can still hit
+`colour-behaviour-service.<subdomain>.workers.dev/colours` **directly**, bypassing the web worker.
+So the **rate limiter above remains the real cost ceiling** — Turnstile just removes low-effort UI
+bot traffic.
+
+## Cost alerting (billing usage alert)
+
+A backstop so runaway usage reaches you before the bill does. This is a **dashboard action** (there's
+no in-repo IaC for it):
+
+1. Cloudflare dashboard → **Notifications** → **Add** → **Billing** (usage/spend) notification, and
+   set a threshold with your email/webhook.
+2. Watch the free-tier ceilings the write path pushes against:
+   [R2](https://developers.cloudflare.com/r2/pricing/) (10 GB storage, 1M Class A ops/mo free —
+   storage is the unbounded one, since every colour is retained as the system of record) and
+   [Workers](https://developers.cloudflare.com/workers/platform/limits/) (100k requests/day free).
+3. Optionally add per-service R2 storage/ops notifications so a spike in `colour-data` is flagged
+   directly.

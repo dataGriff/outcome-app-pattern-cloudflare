@@ -23,6 +23,13 @@
     <button id="gen">Generate colour</button>
     <span id="result" class="pill">—</span>
 
+    <!-- Cloudflare Turnstile: keeps casual bots off this public UI. The sitekey
+         below is Cloudflare's always-pass TEST key — replace it with your real
+         widget sitekey (and set the worker's TURNSTILE_SECRET) to activate.
+         See docs/deployment. Verification is enforced by the web worker. -->
+    <div class="cf-turnstile" data-sitekey="1x00000000000000000000AA"></div>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+
     <h2>Live events <span id="conn" class="muted">(connecting…)</span></h2>
     <ul id="feed"></ul>
 
@@ -34,10 +41,27 @@
       const conn = document.getElementById('conn');
 
       // POST goes through the same-origin proxy (avoids CORS on writes).
+      // Guard against double-clicks: a second click while a POST is in flight
+      // would generate a second, distinct colour event. One click, one event.
+      let pending = false;
       btn.addEventListener('click', async () => {
+        if (pending) return;
+        pending = true;
+        btn.disabled = true;
         res.textContent = '⏳ generating...';
         try {
-          const r = await fetch('/api/colours', { method: 'POST' });
+          // Turnstile token (empty when the widget hasn't loaded / isn't configured);
+          // the worker only enforces it when TURNSTILE_SECRET is set.
+          const token = window.turnstile ? window.turnstile.getResponse() : '';
+          const r = await fetch('/api/colours', {
+            method: 'POST',
+            headers: token ? { 'cf-turnstile-response': token } : {},
+          });
+          window.turnstile && window.turnstile.reset(); // tokens are single-use
+          if (r.status === 403) {
+            res.textContent = '🛑 bot check failed — please retry';
+            return;
+          }
           if (r.status === 429) {
             const retry = r.headers.get('Retry-After') || '60';
             res.textContent = `⏳ rate limited — try again in ${retry}s`;
@@ -48,6 +72,9 @@
           res.textContent = j.colour + ' @ ' + (j.timestamp || '');
         } catch (e) {
           res.textContent = 'error';
+        } finally {
+          pending = false;
+          btn.disabled = false;
         }
       });
 
