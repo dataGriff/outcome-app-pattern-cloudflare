@@ -6,28 +6,44 @@ a **source-aligned, API-first, multichannel domain** — ported to run entirely 
 
 Same pattern, same colour domain, same contracts; only the platform changes. This repo
 is also the first dry run of the source repo's
-[replication guide](https://github.com/dataGriff/outcome-app-pattern/blob/main/docs/replication.md):
-the three zones, the naming rules, and the contract-first order of work all carry over.
+[replication guide](https://github.com/dataGriff/outcome-app-pattern/blob/main/docs/replication/index.md):
+the three zones, the naming rules, and the contract-first order of work all carry over. Every
+role keeps its name; only the implementation underneath is swapped — the full role → Cloudflare
+mapping is in [docs/architecture](docs/architecture/index.md).
 
-## Role mapping
+## The pattern
 
-Every role from the pattern keeps its name; only the implementation underneath is swapped
-(role-named bindings, honest implementation names in `wrangler.jsonc`):
+```mermaid
+flowchart TB
+  user([POST /colours]) --> api
+  subgraph domain["domain/ — the source-aligned core"]
+    api["Behaviour API<br/>Worker · Hono"]
+    store[("D1<br/>colours + outbox · atomic batch()")]
+    relay["Relay<br/>OutboxRelayDO · alarms"]
+    api -->|one transaction| store --> relay
+  end
+  subgraph platform["platform/ — infrastructure + analytics"]
+    events{{"Queue · colour-events"}}
+    streaming["Streaming<br/>queue consumer"]
+    raw[("R2<br/>colour-operational · JSONL")]
+    summariser["Summariser<br/>cron scheduled()"]
+    curated[("R2<br/>colour-performance · Parquet")]
+    viz["Visualisation<br/>static page + /products/*"]
+    events --> streaming --> raw --> summariser --> curated --> viz
+  end
+  subgraph experiences["experiences/ — one API, many channels"]
+    web["web · colour-web Worker"]
+    mobile["mobile · Expo/RN"]
+    agent["agent · colour-agent · MCP http"]
+  end
+  relay -->|colour.generated| events
+  events -. SSE · StreamDO .-> api
+  web & mobile & agent -->|read the one API| api
+  api -. live SSE .-> experiences
+```
 
-| Pattern role | Source implementation | Cloudflare implementation |
-| --- | --- | --- |
-| behaviour API | FastAPI | `colour-behaviour-service` Worker (Hono) |
-| operational-store | Postgres | D1 — one atomic `batch()` is the outbox transaction |
-| relay | asyncpg loop | `OutboxRelayDO` Durable Object (poke on write + alarm backstop + prune) |
-| events | NATS | Queue `colour-events` |
-| SSE bridge | in-API NATS subscriber | `StreamDO` Durable Object (SSE fan-out) |
-| streaming | bento | queue consumer → JSONL to R2 |
-| object-storage | SeaweedFS (S3) | R2 bucket `colour-data` |
-| summariser | pandas loop | cron `scheduled()` → Parquet |
-| visualisation | Streamlit | static page + `/products/*` read endpoints |
-| web experience | Flask | `colour-web` Worker (static assets + same-origin proxy) |
-| mobile experience | Expo/React Native | unchanged (points at the deployed API) |
-| agent experience | MCP server (stdio) | `colour-agent` Worker (MCP over streamable-http) |
+The same shape as the [source pattern](https://github.com/dataGriff/outcome-app-pattern) — only
+the implementation labels differ. See [docs/architecture](docs/architecture/index.md).
 
 ## Run it locally
 
@@ -41,58 +57,21 @@ task up      # domain :8787  data-products :8788  web :8789  agent :8790
 
 Then open the web channel at http://localhost:8789, run the mobile app with
 `task run:mobile`, or point an MCP client at http://localhost:8790/mcp. `task ci`
-runs the whole hermetic suite (contract lints, generated-types staleness,
-typecheck, unit/integration/data-product/agent tests, and Schemathesis).
+runs the whole hermetic suite. Full local-dev detail is in
+[docs/development](docs/development/index.md).
 
-## Storage model
+## Documentation
 
-The raw operational product is the durable **system of record** — kept forever,
-never re-scanned wholesale. Both products live in the one `colour-data` R2 bucket:
+All documentation is indexed in **[docs/index.md](docs/index.md)** — the canonical topic
+router for humans and agents. Start there for:
 
-```
-colour-operational/dt=YYYY-MM-DD/<ts>-<id>.jsonl   # bronze — immutable, date-partitioned
-colour-operational/dt=YYYY-MM-DD/part-0000.jsonl   #   sealed day, fragments compacted to one
-colour-performance/dt=YYYY-MM-DD/part.parquet      # silver — per-day curated Parquet
-_state/summariser.json                             # watermark: { "sealedThrough": "YYYY-MM-DD" }
-```
+- [Architecture](docs/architecture/index.md) — the pattern, the three zones, the role mapping.
+- [Contracts](docs/contracts/index.md) — the OpenAPI, AsyncAPI, and data contracts.
+- [Development](docs/development/index.md) — multi-process local dev and the Taskfile.
+- [Testing](docs/testing/index.md) — the hermetic suite and the post-deploy `datacontract test`.
+- [Data products](docs/data-products/index.md) — the R2 storage model and incremental summariser.
+- [Experiences](docs/experiences/index.md) — web, mobile, agent — and the deployed MCP agent.
+- [Deployment](docs/deployment/index.md) — cloud setup, CI secrets/vars, deploy + verify.
+- [Productionising](docs/productionising/index.md) · [Replication](docs/replication/index.md).
 
-The summariser is **incremental**: each run recomputes only the open window
-(today + a grace day, `SUMMARISER_OPEN_DAYS`, default 2), then seals each closed
-day exactly once — writes its per-day Parquet, compacts its raw fragments, and
-advances the watermark. Sealed days are never listed or read again, so per-run
-work is bounded regardless of how large the archive grows. Analytical reads hit
-the curated per-day Parquets (and the recent operational window); the full
-archive is an occasional audit read straight from R2. Cold-tiering sealed
-partitions to R2 Infrequent Access via a lifecycle rule is the paid production
-lever (free plan does the tiering logically — a sealed partition you simply don't read).
-
-## Deploying
-
-Deploy is a single `task deploy` (remote D1 migrations, then domain → platform →
-web → agent), run automatically by CI on push to `main`. It needs some one-time
-setup on the Cloudflare account:
-
-1. **Enable R2** once in the Cloudflare dashboard (the free tier still requires
-   the initial opt-in), then `task bootstrap:cloud` to create the D1 database,
-   the queue and the `colour-data` bucket.
-2. **GitHub secrets:** `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and a
-   read-only R2 S3 key pair (`R2_S3_ACCESS_KEY_ID`, `R2_S3_SECRET_ACCESS_KEY`)
-   for the post-deploy `datacontract test`.
-3. **GitHub variable:** `WORKERS_SUBDOMAIN` (your `*.workers.dev` subdomain) so
-   the verify job can reach the deployed channels.
-
-The CI `verify` job then smoke-tests the deployed stack end to end — generate,
-latest, the SSE feed, cross-process queue delivery to the operational product,
-the Parquet summariser — and runs the real `datacontract test` against both
-products over R2's S3 API.
-
-## Contracts
-
-Copied from the source repo with **only infrastructure edits** (server URLs, storage
-locations) — the models, channels, and purposes are identical:
-
-- `domain/contracts/api/behaviour-service.openapi.yaml` — the HTTP surface (source of truth)
-- `domain/contracts/api/behaviour-service.asyncapi.yaml` — the event channel
-- `domain/contracts/data/colour-operational.contract.yaml` — raw JSONL product (operational awareness)
-- `domain/contracts/data/colour-performance.contract.yaml` — curated Parquet product (performance)
-- `domain/events/colour.generated.schema.json` — CloudEvent payload schema
+Agents: the working agreement is [AGENTS.md](AGENTS.md).
