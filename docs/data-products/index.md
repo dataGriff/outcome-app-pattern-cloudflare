@@ -31,3 +31,19 @@ Cold-tiering sealed partitions to **R2 Infrequent Access** via a lifecycle rule 
 production lever. The free plan does the tiering *logically* — a sealed partition is simply one
 you don't read. This is the platform-agnostic upgrade the port fed back into the source pattern
 (see [replication](../replication/index.md)).
+
+## Table-format storage (Iceberg — scale lever)
+
+Iceberg is **not a replacement for Parquet** — it's a *table format* layered on top of it (an
+Iceberg table's data files are Parquet). Cloudflare exposes it as **R2 Data Catalog** (a managed
+Apache Iceberg REST catalog over R2) plus **R2 SQL**. Over bare Parquet files it adds ACID
+snapshots, schema/partition evolution, time travel, and multi-engine reads (DuckDB, Spark,
+PyIceberg, …) with catalog-level partition pruning.
+
+This demo keeps **plain Parquet**: the curated product is tiny per-day aggregates with a single
+reader and no query engine, and the summariser Worker writes Parquet directly — whereas Iceberg
+writes want a compute engine (PyIceberg / Spark) or Cloudflare Pipelines to commit the
+manifests/snapshots, which a Worker can't do natively. Reach for Iceberg when the curated product
+grows to large, long-history, multi-consumer analytics that need ACID appends and external-engine
+queries. It's the grown-up form of the [incremental summariser](#the-incremental-summariser) above:
+each sealed day here is, in effect, an Iceberg snapshot-per-commit with a hand-rolled watermark.
