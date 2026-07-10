@@ -110,3 +110,12 @@ an always-on loop; Queues are single-consumer so the relay fans out itself (queu
 product + best-effort SSE broadcast). The full analysis lives in the source repo's
 [replication guide](https://github.com/dataGriff/outcome-app-pattern/blob/main/docs/replication/index.md),
 which this repo was the dry run for (see [replication](../replication/index.md)).
+
+The **platform zone also collapses to one Worker.** The source repo splits `platform/` into
+separate container services — `streaming/` (bento), `storage/` (SeaweedFS), `analytics/summariser`
+and `analytics/visualisation` (Streamlit). Here the streaming consumer (`queue()`), the summariser
+(`scheduled()` cron), the products read surface, and the static visualisation all live in the one
+`colour-data-products` Worker, sharing the R2 binding and deploying together. There is **no
+`platform/storage/`** — R2 is managed (created by `task bootstrap:cloud`), and the operational
+store's schema lives in D1 migrations under `domain/`, not the platform zone. Same roles (they're
+all in the mapping above), fewer moving parts.
