@@ -86,8 +86,10 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::SSE bridge is live (bounded read within the relay alarm window)"
-          curl -fsS -N -m 8 "$DOMAIN/events/stream" -D - -o /tmp/sse.txt || true
-          grep -qi 'content-type: text/event-stream' /tmp/sse.txt
+          # Dump the response headers to a file (not stdout) so the grep can find
+          # them; the body streams until -m bounds it, which is expected.
+          curl -fsS -N -m 8 "$DOMAIN/events/stream" -D /tmp/sse-headers.txt -o /dev/null || true
+          grep -qi 'content-type: text/event-stream' /tmp/sse-headers.txt
           echo "::endgroup::"
 
           echo "::group::operational product received the events over the queue"
