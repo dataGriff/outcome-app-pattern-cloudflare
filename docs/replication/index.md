@@ -3,7 +3,7 @@
 This repo **is** the replication dry-run: the source pattern lifted wholesale onto a completely
 different platform (Cloudflare's free plan, TypeScript). The verdict — the structure carried
 over unchanged; only the implementations behind the role names were swapped. See the
-[architecture role mapping](../architecture/index.md#role-mapping) for what changed and why.
+[architecture role mapping](../architecture/index.md#this-implementation) for what changed and why.
 
 The canonical lift-out guide, including the platform-swap analysis this port fed back into, lives
 in the source repo:

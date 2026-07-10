@@ -6,6 +6,41 @@ structure is unchanged from the source: the three zones, the naming rules, and t
 contract-first order of work all carry over; only the implementations behind the role names
 are swapped.
 
+## The pattern
+
+The logical shape, independent of any platform — this diagram is **byte-identical** to the one
+in the [source repo](https://github.com/dataGriff/outcome-app-pattern/blob/main/docs/architecture/index.md);
+only the [implementation](#this-implementation) labels below change:
+
+```mermaid
+flowchart TB
+  user([POST /colours]) --> api
+  subgraph domain["domain/ — the source-aligned core"]
+    api[Behaviour API]
+    store[("Operational store<br/>+ outbox")]
+    relay[Relay]
+    api -->|one transaction| store --> relay
+  end
+  subgraph platform["platform/ — infrastructure + analytics"]
+    events{{Event broker}}
+    streaming[Streaming]
+    raw[("Object storage<br/>colour-operational · raw")]
+    summariser[Summariser]
+    curated[("Object storage<br/>colour-performance · curated")]
+    viz[Visualisation]
+    events --> streaming --> raw --> summariser --> curated --> viz
+  end
+  subgraph experiences["experiences/ — one API, many channels"]
+    web[web]
+    mobile[mobile]
+    agent[agent]
+  end
+  relay -->|colour.generated| events
+  events -. SSE bridge .-> api
+  web & mobile & agent -->|read the one API| api
+  api -. live SSE .-> experiences
+```
+
 ## The three zones
 
 | Zone | Owns |
@@ -14,10 +49,43 @@ are swapped.
 | `experiences/` | One directory per channel — `web`, `mobile`, `agent` — each consuming the one API. See [experiences](../experiences/index.md). |
 | `platform/` | The queue consumer (→ raw JSONL), the summariser (→ curated Parquet), and the visualisation page. See [data products](../data-products/index.md). |
 
-## Role mapping
+## This implementation
 
-Every role from the pattern keeps its name; only the implementation underneath is swapped
-(role-named bindings, honest implementation names in `wrangler.jsonc`):
+The same pattern, realised on Cloudflare — identical topology to [the pattern](#the-pattern)
+above, concrete primitives in each box (Workers, D1, Queues, R2, …). The relay fans out to the
+Queue **and** the `StreamDO` that holds the live SSE connections:
+
+```mermaid
+flowchart TB
+  user([POST /colours]) --> api
+  subgraph domain["domain/ — the source-aligned core"]
+    api["Behaviour API<br/>Worker · Hono"]
+    store[("D1<br/>colours + outbox · atomic batch()")]
+    relay["Relay<br/>OutboxRelayDO · alarms"]
+    api -->|one transaction| store --> relay
+  end
+  subgraph platform["platform/ — infrastructure + analytics"]
+    events{{"Queue · colour-events"}}
+    streaming["Streaming<br/>queue consumer"]
+    raw[("R2<br/>colour-operational · JSONL")]
+    summariser["Summariser<br/>cron scheduled()"]
+    curated[("R2<br/>colour-performance · Parquet")]
+    viz["Visualisation<br/>static page + /products/*"]
+    events --> streaming --> raw --> summariser --> curated --> viz
+  end
+  subgraph experiences["experiences/ — one API, many channels"]
+    web["web · colour-web Worker"]
+    mobile["mobile · Expo/RN"]
+    agent["agent · colour-agent · MCP http"]
+  end
+  relay -->|colour.generated| events
+  events -. SSE · StreamDO .-> api
+  web & mobile & agent -->|read the one API| api
+  api -. live SSE .-> experiences
+```
+
+Every role keeps its name; only the implementation underneath is swapped (role-named bindings,
+honest implementation names in `wrangler.jsonc`):
 
 | Pattern role | Source implementation | Cloudflare implementation |
 | --- | --- | --- |

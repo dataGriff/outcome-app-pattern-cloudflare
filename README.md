@@ -11,6 +11,40 @@ the three zones, the naming rules, and the contract-first order of work all carr
 role keeps its name; only the implementation underneath is swapped — the full role → Cloudflare
 mapping is in [docs/architecture](docs/architecture/index.md).
 
+## The pattern
+
+```mermaid
+flowchart TB
+  user([POST /colours]) --> api
+  subgraph domain["domain/ — the source-aligned core"]
+    api["Behaviour API<br/>Worker · Hono"]
+    store[("D1<br/>colours + outbox · atomic batch()")]
+    relay["Relay<br/>OutboxRelayDO · alarms"]
+    api -->|one transaction| store --> relay
+  end
+  subgraph platform["platform/ — infrastructure + analytics"]
+    events{{"Queue · colour-events"}}
+    streaming["Streaming<br/>queue consumer"]
+    raw[("R2<br/>colour-operational · JSONL")]
+    summariser["Summariser<br/>cron scheduled()"]
+    curated[("R2<br/>colour-performance · Parquet")]
+    viz["Visualisation<br/>static page + /products/*"]
+    events --> streaming --> raw --> summariser --> curated --> viz
+  end
+  subgraph experiences["experiences/ — one API, many channels"]
+    web["web · colour-web Worker"]
+    mobile["mobile · Expo/RN"]
+    agent["agent · colour-agent · MCP http"]
+  end
+  relay -->|colour.generated| events
+  events -. SSE · StreamDO .-> api
+  web & mobile & agent -->|read the one API| api
+  api -. live SSE .-> experiences
+```
+
+The same shape as the [source pattern](https://github.com/dataGriff/outcome-app-pattern) — only
+the implementation labels differ. See [docs/architecture](docs/architecture/index.md).
+
 ## Run it locally
 
 One command brings up all four workers, each on its own port, wired by Wrangler's

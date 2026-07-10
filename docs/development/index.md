@@ -33,4 +33,4 @@ delivery between them, so the stack behaves like the deployed topology.
   integration / data-product / agent tests, and Schemathesis vs `wrangler dev`). Deploy is
   `task deploy` — see [deployment](../deployment/index.md).
 - **Role-named bindings, honest implementation names** in `wrangler.jsonc` (see
-  [architecture](../architecture/index.md#role-mapping)).
+  [architecture](../architecture/index.md#this-implementation)).
