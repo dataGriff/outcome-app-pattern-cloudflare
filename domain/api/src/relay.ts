@@ -22,6 +22,7 @@ interface OutboxRow {
 
 export class OutboxRelayDO extends DurableObject<Env> {
   private lastPrune = 0;
+  private drainChain: Promise<number> = Promise.resolve(0);
 
   async poke(): Promise<void> {
     await this.drain();
@@ -38,7 +39,22 @@ export class OutboxRelayDO extends DurableObject<Env> {
     );
   }
 
-  private async drain(): Promise<number> {
+  /** Serialise drains. A Durable Object does not hold its input gate across the
+   * non-storage `await` on the queue send, so a concurrent poke()/alarm() —
+   * e.g. from a double-click's two writes — could otherwise re-select the same
+   * not-yet-marked outbox rows and publish + broadcast them twice. Chaining
+   * guarantees one drain runs at a time, so every row is delivered exactly once
+   * per drain while the publish-before-mark at-least-once semantics stay intact. */
+  private drain(): Promise<number> {
+    const next = this.drainChain.then(
+      () => this.runDrain(),
+      () => this.runDrain(),
+    );
+    this.drainChain = next.catch(() => 0);
+    return next;
+  }
+
+  private async runDrain(): Promise<number> {
     const { results } = await this.env.OPERATIONAL_STORE
       .prepare(
         "SELECT id, subject, payload FROM outbox WHERE published_at IS NULL ORDER BY created_at LIMIT ?",

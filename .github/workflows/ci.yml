@@ -92,6 +92,27 @@ jobs:
           grep -qi 'content-type: text/event-stream' /tmp/sse-headers.txt
           echo "::endgroup::"
 
+          echo "::group::no duplicate SSE broadcasts under concurrent writes (relay drain race)"
+          # Two near-simultaneous writes (a double-click) must each broadcast
+          # exactly once. A Durable Object drops its input gate across the
+          # queue-send await, so an unserialised drain re-selects and re-broadcasts
+          # the same not-yet-marked row — a byte-identical data: line. This gate
+          # needs real queue latency, so it lives here, not in the hermetic suite.
+          # See domain/api/src/relay.ts.
+          curl -fsS -N -m 10 "$DOMAIN/events/stream" -o /tmp/sse-body.txt &
+          sse_pid=$!
+          sleep 2
+          curl -fsS -X POST "$DOMAIN/colours" >/dev/null &
+          ( sleep 0.03; curl -fsS -X POST "$DOMAIN/colours" >/dev/null ) &
+          wait %2 %3
+          sleep 4
+          kill "$sse_pid" 2>/dev/null || true
+          wait "$sse_pid" 2>/dev/null || true
+          dupes=$(grep '^data:' /tmp/sse-body.txt | sort | uniq -d || true)
+          if [ -n "$dupes" ]; then echo "duplicate frames:"; echo "$dupes"; exit 1; fi
+          echo "no duplicate frames"
+          echo "::endgroup::"
+
           echo "::group::operational product received the events over the queue"
           for i in $(seq 1 30); do
             count=$(curl -fsS "$PRODUCTS/products/colour-operational" | python3 -c "import sys,json;print(len(json.load(sys.stdin)))")
