@@ -14,7 +14,10 @@ export default defineConfig({
       return {
         wrangler: { configPath: "./wrangler.jsonc" },
         miniflare: {
-          bindings: { TEST_MIGRATIONS: migrations, ASYNCAPI_YAML: asyncapiYaml },
+          // Override RATE_LIMIT off so the SELF-based hermetic tests (which POST
+          // many times) aren't throttled; the 429 path is covered in isolation
+          // by tests/unit/ratelimit.test.ts.
+          bindings: { TEST_MIGRATIONS: migrations, ASYNCAPI_YAML: asyncapiYaml, RATE_LIMIT: "off" },
         },
       };
     }),

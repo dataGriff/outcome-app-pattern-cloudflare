@@ -67,7 +67,7 @@ tasks:
       - python3 -m pip install --quiet schemathesis
       - npx wrangler d1 migrations apply colour --local -c domain/api/wrangler.jsonc
       - |
-        npx wrangler dev -c domain/api/wrangler.jsonc > /tmp/wrangler-conformance.log 2>&1 &
+        npx wrangler dev -c domain/api/wrangler.jsonc --var RATE_LIMIT:off > /tmp/wrangler-conformance.log 2>&1 &
         DEV_PID=$!
         trap "kill $DEV_PID 2>/dev/null" EXIT
         for i in $(seq 1 60); do curl -sf http://localhost:8787/openapi.json > /dev/null && break; sleep 1; done
