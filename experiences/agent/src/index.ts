@@ -36,6 +36,18 @@ export class ColourAgent extends McpAgent<Env> {
       {},
       async () => {
         const r = await api.fetch(`${DOMAIN}/colours`, { method: "POST" });
+        if (r.status === 429) {
+          const retry = r.headers.get("Retry-After") ?? "60";
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Rate limited: too many colour generations. Retry after ${retry} seconds.`,
+              },
+            ],
+            isError: true,
+          };
+        }
         return { content: [{ type: "text", text: await r.text() }] };
       },
     );

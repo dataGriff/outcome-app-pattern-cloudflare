@@ -22,6 +22,7 @@ export default function App() {
   const [latest, setLatest] = useState<ColourEvent | null>(null);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [conn, setConn] = useState('connecting…');
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     client
@@ -46,10 +47,18 @@ export default function App() {
 
   const generate = async () => {
     try {
-      const { data } = await client.POST('/colours');
-      if (data) setLatest(data);
+      const { data, response } = await client.POST('/colours');
+      if (response.status === 429) {
+        const retry = response.headers.get('Retry-After');
+        setNotice(retry ? `Rate limited — try again in ${retry}s` : 'Rate limited — please wait a moment');
+        return;
+      }
+      if (data) {
+        setLatest(data);
+        setNotice(null);
+      }
     } catch (e) {
-      // ignore in demo
+      setNotice('Network error — please try again');
     }
   };
 
@@ -64,6 +73,8 @@ export default function App() {
       <Pressable style={styles.btn} onPress={generate}>
         <Text style={styles.btnText}>Generate colour</Text>
       </Pressable>
+
+      {notice && <Text style={styles.notice}>{notice}</Text>}
 
       <View style={styles.latestRow}>
         <View style={[styles.dot, { backgroundColor: latest ? DOTS[latest.colour] : '#ccc' }]} />
@@ -99,6 +110,7 @@ const styles = StyleSheet.create({
   p: { color: '#444', marginBottom: 20 },
   btn: { backgroundColor: '#111', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8, alignSelf: 'flex-start' },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  notice: { marginTop: 12, color: '#b54708', backgroundColor: '#fff7e0', borderRadius: 6, paddingVertical: 8, paddingHorizontal: 12 },
   latestRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16 },
   latestText: { fontSize: 16 },
   dot: { width: 14, height: 14, borderRadius: 7, marginRight: 10 },
