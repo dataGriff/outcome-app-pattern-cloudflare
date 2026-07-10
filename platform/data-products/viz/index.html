@@ -41,7 +41,9 @@
 
     <section id="pane-performance" hidden>
       <p class="muted">How colours trend over time, and where things stand right now
-        (the <code>colour-performance</code> product, curated Parquet).</p>
+        (the <code>colour-performance</code> product, curated Parquet).
+        <button id="recompute" class="refresh">⚙️ Recompute performance</button>
+        <span id="recomputed" class="muted"></span></p>
       <div id="perf-content"></div>
       <canvas id="perf-chart"></canvas>
     </section>
@@ -117,6 +119,19 @@
         document.getElementById('refreshed').textContent = 'Last refreshed: ' + new Date().toLocaleTimeString();
       }
       document.getElementById('refresh').onclick = refresh;
+
+      async function recompute() {
+        const btn = document.getElementById('recompute');
+        const note = document.getElementById('recomputed');
+        btn.disabled = true;
+        note.textContent = 'Running summariser…';
+        const res = await (await fetch('/run/summarise', { method: 'POST' })).json();
+        note.textContent = `Recomputed ${res.rows} rows at ` + new Date().toLocaleTimeString();
+        await loadPerformance();
+        btn.disabled = false;
+      }
+      document.getElementById('recompute').onclick = recompute;
+
       refresh();
     </script>
   </body>
