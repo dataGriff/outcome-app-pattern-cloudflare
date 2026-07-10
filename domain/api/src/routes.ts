@@ -5,6 +5,7 @@ import specText from "../../contracts/api/behaviour-service.openapi.yaml";
 import type { components } from "../types/api";
 import { createColour, latest, recent } from "./db";
 import type { Env } from "./env";
+import { rateLimit } from "./ratelimit";
 
 type ColourEvent = components["schemas"]["ColourEvent"];
 type Colour = ColourEvent["colour"];
@@ -35,7 +36,7 @@ export const app = new Hono<{ Bindings: Env }>();
 // Experiences (mobile web export, agents) call the API cross-origin.
 app.use("*", cors());
 
-app.post("/colours", async (c) => {
+app.post("/colours", rateLimit, async (c) => {
   const colour = COLOURS[Math.floor(Math.random() * COLOURS.length)];
   const row = await createColour(c.env, colour);
   // Poke the relay for immediate drain; its alarm is the at-least-once backstop.

@@ -27,6 +27,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ColourEvent"
+        "429":
+          description: Rate limited — too many colour generations. Retry after the Retry-After interval.
     get:
       operationId: colourHistory
       summary: Recent colours (most recent first)

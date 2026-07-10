@@ -130,6 +130,13 @@ export interface operations {
                     "application/json": components["schemas"]["ColourEvent"];
                 };
             };
+            /** @description Rate limited — too many colour generations. Retry after the Retry-After interval. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     latestColour: {

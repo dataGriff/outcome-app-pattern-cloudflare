@@ -28,6 +28,21 @@
   // Free plan requires SQLite-backed Durable Object classes.
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["OutboxRelayDO", "StreamDO"] }],
   "vars": {
-    "OUTBOX_RETENTION_SECONDS": "3600"
+    "OUTBOX_RETENTION_SECONDS": "3600",
+    // Abuse guard for the one write endpoint (POST /colours). "on" here so the
+    // deployed API enforces it; local dev + the Schemathesis run override it to
+    // "off" (--var), and vitest sets "off" too, so the hermetic gates aren't
+    // throttled. See src/ratelimit.ts and docs/deployment.
+    "RATE_LIMIT": "on"
+  },
+  // Native Workers Rate Limiting (free, in-memory per-colo). Two limiters guard
+  // POST /colours: per-client-IP stops a single flooder; the global cap is the
+  // wallet ceiling against distributed abuse driving R2 writes/storage. The
+  // simple limiter's period must be 10 or 60 seconds.
+  "unsafe": {
+    "bindings": [
+      { "name": "RL_PER_IP", "type": "ratelimit", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+      { "name": "RL_GLOBAL", "type": "ratelimit", "namespace_id": "1002", "simple": { "limit": 60, "period": 60 } }
+    ]
   }
 }
