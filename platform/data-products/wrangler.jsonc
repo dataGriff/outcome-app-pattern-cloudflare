@@ -8,6 +8,9 @@
   "dev": { "port": 8788 },
   "observability": { "enabled": true },
   "assets": { "directory": "viz" },
+  // Days kept "open" (recomputed from raw each run) before a day is sealed and
+  // its raw partition compacted + never re-read. See src/summariser.ts.
+  "vars": { "SUMMARISER_OPEN_DAYS": "2" },
   "r2_buckets": [
     { "binding": "OBJECT_STORAGE", "bucket_name": "colour-data" }
   ],

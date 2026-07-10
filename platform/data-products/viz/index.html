@@ -73,7 +73,7 @@
         const latest = rows.slice(0, 10).map(r =>
           `<tr><td>${r.colour}</td><td>${r.timestamp}</td></tr>`).join('');
         content.innerHTML =
-          `<div class="metrics"><div class="metric"><div class="value">${rows.length}</div>Total events (all time)</div></div>` +
+          `<div class="metrics"><div class="metric"><div class="value">${rows.length}</div>Recent events</div></div>` +
           `<strong>Latest activity</strong><table><tr><th>colour</th><th>timestamp</th></tr>${latest}</table>`;
         const counts = {};
         for (const r of rows) counts[r.colour] = (counts[r.colour] || 0) + 1;

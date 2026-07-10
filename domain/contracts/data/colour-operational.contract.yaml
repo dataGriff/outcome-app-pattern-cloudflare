@@ -17,7 +17,9 @@ info:
 servers:
   raw:
     type: s3
-    location: s3://colour-data/colour-operational/*.jsonl
+    # Hive-style date partitions (dt=YYYY-MM-DD/); one JSONL file per ingest
+    # batch, compacted to one file per day once the day is sealed.
+    location: s3://colour-data/colour-operational/**/*.jsonl
     endpointUrl: https://f0884fe6c7811fc0e6edc6f6cdcd95bb.r2.cloudflarestorage.com
     format: json
     delimiter: new_line
@@ -42,5 +44,7 @@ servicelevels:
     threshold: 1h
     timestampField: colour_operational.timestamp
   retention:
-    description: The granular record is retained for one year for long-term detail.
-    period: P1Y
+    description: >
+      The durable system of record — the immutable, per-event raw log is retained
+      long-term (never deleted by the app) for audit, deep-dive and reprocessing.
+    period: P10Y

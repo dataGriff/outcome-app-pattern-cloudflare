@@ -16,7 +16,9 @@ info:
 servers:
   aggregate:
     type: s3
-    location: s3://colour-data/colour-performance/*.parquet
+    # Partitioned per day (dt=YYYY-MM-DD/); sealed days are written once, the
+    # open window is recomputed each run.
+    location: s3://colour-data/colour-performance/**/*.parquet
     endpointUrl: https://f0884fe6c7811fc0e6edc6f6cdcd95bb.r2.cloudflarestorage.com
     format: parquet
 
