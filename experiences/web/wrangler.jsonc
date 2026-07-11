@@ -8,6 +8,8 @@
   "compatibility_date": "2026-06-01",
   "dev": { "port": 8789 },
   "observability": { "enabled": true },
+  // Custom domain on the domainapps.org zone — the hostname the Access app fronts.
+  "routes": [{ "pattern": "colour-web.domainapps.org", "custom_domain": true }],
   "assets": {
     "directory": "./public",
     "run_worker_first": ["/api/*"]

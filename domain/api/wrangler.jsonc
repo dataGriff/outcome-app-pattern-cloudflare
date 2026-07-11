@@ -7,6 +7,10 @@
   "compatibility_date": "2026-06-01",
   "dev": { "port": 8787 },
   "observability": { "enabled": true },
+  // Custom domain on the domainapps.org zone. Auto-creates the DNS record + TLS
+  // cert on deploy (requires the zone to be active). The *.workers.dev URL stays
+  // live too; the in-Worker Access check (src/auth.ts) covers both hostnames.
+  "routes": [{ "pattern": "colour-api.domainapps.org", "custom_domain": true }],
   "rules": [{ "type": "Text", "globs": ["**/*.yaml"], "fallthrough": true }],
   "d1_databases": [
     {
