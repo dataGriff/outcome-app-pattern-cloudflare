@@ -17,7 +17,7 @@
   // See src/products.ts and docs/security.
   "vars": {
     "SUMMARISER_OPEN_DAYS": "2",
-    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_TEAM_DOMAIN": "https://hungovercoders.cloudflareaccess.com",
     "ACCESS_AUD": ""
   },
   "r2_buckets": [

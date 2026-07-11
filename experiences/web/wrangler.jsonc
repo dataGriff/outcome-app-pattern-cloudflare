@@ -19,7 +19,7 @@
   // behind an Access self-hosted app, then set both to validate the injected
   // JWT here and forward it to the domain. Inert until set. See docs/security.
   "vars": {
-    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_TEAM_DOMAIN": "https://hungovercoders.cloudflareaccess.com",
     "ACCESS_AUD": ""
   }
 }

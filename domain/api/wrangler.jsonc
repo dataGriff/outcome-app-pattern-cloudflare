@@ -41,7 +41,7 @@
     // Cloudflare Access caller auth on POST /colours. Inert until provisioned
     // (like Turnstile): set both to your team domain and this API's Access AUD
     // tag to enforce. Neither is secret. See src/auth.ts and docs/security.
-    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_TEAM_DOMAIN": "https://hungovercoders.cloudflareaccess.com",
     "ACCESS_AUD": ""
   },
   // Native Workers Rate Limiting (free, in-memory per-colo). Two limiters guard
