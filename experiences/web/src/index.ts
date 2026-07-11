@@ -1,6 +1,17 @@
+import { verifyAccessJwt } from "@colour/access-jwt";
 import type { Env } from "./env";
 
 const TURNSTILE_VERIFY = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+
+const ACCESS_HEADER = "cf-access-jwt-assertion";
+
+/** Forward the caller's Access JWT to the domain over the service binding, so
+ * the domain sees who is calling. Service-binding traffic bypasses the edge, so
+ * the domain can only learn identity from this forwarded header. */
+function forwardedAuthHeaders(request: Request): HeadersInit {
+  const token = request.headers.get(ACCESS_HEADER);
+  return token ? { [ACCESS_HEADER]: token } : {};
+}
 
 /** Verify a Turnstile token against Cloudflare's siteverify endpoint. Only
  * called when TURNSTILE_SECRET is configured; keeps casual bots off the public
@@ -25,6 +36,19 @@ export default {
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
 
+    // Validate the Access JWT here too (defence in depth) — the edge should have
+    // already, but a valid identity is required before we act. Inert when Access
+    // is unprovisioned. Applies to the whole /api surface.
+    if (url.pathname.startsWith("/api/")) {
+      const auth = await verifyAccessJwt(request, {
+        teamDomain: env.ACCESS_TEAM_DOMAIN,
+        aud: env.ACCESS_AUD,
+      });
+      if (auth.status === "unauthorized") {
+        return Response.json({ detail: "unauthorized" }, { status: 401 });
+      }
+    }
+
     if (url.pathname === "/api/colours" && request.method === "POST") {
       // Human-challenge the write when Turnstile is provisioned; inert otherwise.
       if (env.TURNSTILE_SECRET) {
@@ -34,7 +58,10 @@ export default {
           return Response.json({ detail: "turnstile verification failed" }, { status: 403 });
         }
       }
-      return env.DOMAIN_API.fetch("https://behaviour-service/colours", { method: "POST" });
+      return env.DOMAIN_API.fetch("https://behaviour-service/colours", {
+        method: "POST",
+        headers: forwardedAuthHeaders(request),
+      });
     }
 
     if (url.pathname === "/api/events/stream" && request.method === "GET") {

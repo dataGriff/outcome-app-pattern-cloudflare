@@ -10,7 +10,14 @@
   "assets": { "directory": "viz" },
   // Days kept "open" (recomputed from raw each run) before a day is sealed and
   // its raw partition compacted + never re-read. See src/summariser.ts.
-  "vars": { "SUMMARISER_OPEN_DAYS": "2" },
+  // ACCESS_* gate the read surface behind Cloudflare Access. Put this Worker's
+  // hostname behind an Access app, then set both to enforce. Inert until set.
+  // See src/products.ts and docs/security.
+  "vars": {
+    "SUMMARISER_OPEN_DAYS": "2",
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": ""
+  },
   "r2_buckets": [
     { "binding": "OBJECT_STORAGE", "bucket_name": "colour-data" }
   ],

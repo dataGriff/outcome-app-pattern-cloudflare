@@ -1,8 +1,10 @@
+import type { AccessIdentity } from "@colour/access-jwt";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { parse } from "yaml";
 import specText from "../../contracts/api/behaviour-service.openapi.yaml";
 import type { components } from "../types/api";
+import { requireAuth } from "./auth";
 import { createColour, latest, recent } from "./db";
 import type { Env } from "./env";
 import { rateLimit } from "./ratelimit";
@@ -31,13 +33,17 @@ const DOCS_HTML = `<!doctype html>
   </body>
 </html>`;
 
-export const app = new Hono<{ Bindings: Env }>();
+export const app = new Hono<{ Bindings: Env; Variables: { identity?: AccessIdentity } }>();
 
 // Experiences (mobile web export, agents) call the API cross-origin. Expose
 // Retry-After so a cross-origin caller can read how long to back off on a 429.
 app.use("*", cors({ exposeHeaders: ["Retry-After"] }));
 
-app.post("/colours", rateLimit, async (c) => {
+// Auth before rate limit: an unauthorised caller shouldn't spend the budget.
+// Scoped to the write for the same reason rate limiting is — reads and the SSE
+// feed stay open (EventSource can't send an auth header), matching the domain's
+// public-read stance. Inert until ACCESS_AUD is set. See src/auth.ts.
+app.post("/colours", requireAuth, rateLimit, async (c) => {
   const colour = COLOURS[Math.floor(Math.random() * COLOURS.length)];
   const row = await createColour(c.env, colour);
   // Poke the relay for immediate drain; its alarm is the at-least-once backstop.

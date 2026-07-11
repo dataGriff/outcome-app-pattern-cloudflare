@@ -6,4 +6,9 @@ export interface Env {
   // to require a human challenge before this channel forwards a generation.
   // Unset = inert (the demo runs without it). See docs/deployment.
   TURNSTILE_SECRET?: string;
+  // Cloudflare Access identity. When this channel's hostname is behind Access,
+  // the edge injects the JWT; set both to validate it here (defence in depth)
+  // and gate /api/*. Unset = inert. See docs/security.
+  ACCESS_TEAM_DOMAIN?: string;
+  ACCESS_AUD?: string;
 }

@@ -12,5 +12,12 @@
   "durable_objects": {
     "bindings": [{ "name": "MCP_OBJECT", "class_name": "ColourAgent" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ColourAgent"] }]
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ColourAgent"] }],
+  // Cloudflare Access identity for the MCP endpoint. Front /mcp with an Access
+  // app (Access as the OAuth provider for MCP clients), then set both to gate
+  // it here. Inert until set. See docs/security.
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": ""
+  }
 }

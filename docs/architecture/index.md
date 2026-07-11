@@ -101,6 +101,7 @@ honest implementation names in `wrangler.jsonc`):
 | web experience | Flask | `colour-web` Worker (static assets + same-origin proxy) |
 | mobile experience | Expo/React Native | unchanged (points at the deployed API) |
 | agent experience | MCP server (stdio) | `colour-agent` Worker (MCP over streamable-http) |
+| identity (port addition) | — (source is open) | Cloudflare Access issues JWTs; every Worker validates them with the shared `access-jwt` verifier. See [security](../security/index.md). |
 
 ## What the platform swap forced
 

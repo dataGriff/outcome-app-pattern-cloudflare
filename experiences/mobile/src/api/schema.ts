@@ -17,6 +17,18 @@ export interface paths {
         /**
          * Generate a colour
          * @description Generate a colour, persist it, and enqueue a colour.generated event.
+         *
+         *     When Cloudflare Access is provisioned, the write requires a valid Access
+         *     identity JWT (`Cf-Access-Jwt-Assertion`, or a bearer token for native /
+         *     direct callers). First-party channels forward the caller's token over
+         *     their service binding. Auth is config-gated: unset in the demo, the
+         *     endpoint is open. Reads and the SSE feed are unauthenticated.
+         *
+         *     Not marked as an unconditional `security` requirement because enforcement
+         *     is conditional: config-gated (off until Access is provisioned) and
+         *     transport-dependent (first-party service-binding callers are trusted
+         *     without a token). The `accessJwt` / `bearerAuth` schemes below document
+         *     the credential a direct caller presents; the 401 documents the failure.
          */
         post: operations["createColour"];
         delete?: never;
@@ -129,6 +141,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ColourEvent"];
                 };
+            };
+            /** @description Missing or invalid Access token (only when Access is provisioned). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Rate limited — too many colour generations. Retry after the Retry-After interval. */
             429: {

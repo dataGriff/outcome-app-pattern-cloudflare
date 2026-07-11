@@ -31,10 +31,19 @@ Once deployed (subdomain = `WORKERS_SUBDOMAIN`):
 - `https://colour-agent.<subdomain>.workers.dev/mcp` — the MCP agent (see
   [experiences](../experiences/index.md#interacting-with-the-deployed-agent))
 
+## Authentication
+
+Identity is **Cloudflare Access** — config-gated and inert until provisioned, like Turnstile below.
+Every Worker validates Access's JWT with one shared verifier; the domain write, the MCP endpoint, and
+the data-products read surface all enforce it once you set `ACCESS_TEAM_DOMAIN` + `ACCESS_AUD`. Full
+model, the per-hostname Access apps on `domainapps.org`, and the one-time Zero Trust setup are in
+[security](../security/index.md). The rate limiting and Turnstile below are the *cost* guards that
+apply whether or not auth is on.
+
 ## Abuse protection (rate limiting)
 
-The API is open (no auth, CORS `*`), so the one **write** endpoint — `POST /colours` — is guarded
-against abuse that would drive R2 writes and storage cost. Two native [Workers rate
+By default the API is open (CORS `*`; auth inert until provisioned), so the one **write** endpoint —
+`POST /colours` — is guarded against abuse that would drive R2 writes and storage cost. Two native [Workers rate
 limiters](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/) (free,
 in-memory per-colo) sit in front of it, in `domain/api`:
 

@@ -9,7 +9,10 @@
   },
   "dependencies": {
     "expo": "~53.0.0",
+    "expo-auth-session": "~6.2.1",
+    "expo-crypto": "~14.1.5",
     "expo-status-bar": "~2.2.3",
+    "expo-web-browser": "~14.2.0",
     "@expo/metro-runtime": "~5.0.4",
     "openapi-fetch": "^0.13.0",
     "react": "19.0.0",

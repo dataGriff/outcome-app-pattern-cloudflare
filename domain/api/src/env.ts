@@ -17,4 +17,8 @@ export interface Env {
   // Present only when RATE_LIMIT is enforced (declared in wrangler.jsonc).
   RL_PER_IP?: RateLimiter;
   RL_GLOBAL?: RateLimiter;
+  // Cloudflare Access identity. Set both to require a valid Access JWT on the
+  // write endpoint; unset = inert (the demo runs open). See src/auth.ts.
+  ACCESS_TEAM_DOMAIN?: string;
+  ACCESS_AUD?: string;
 }

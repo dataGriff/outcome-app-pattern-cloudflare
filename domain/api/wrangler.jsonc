@@ -33,7 +33,12 @@
     // deployed API enforces it; local dev + the Schemathesis run override it to
     // "off" (--var), and vitest sets "off" too, so the hermetic gates aren't
     // throttled. See src/ratelimit.ts and docs/deployment.
-    "RATE_LIMIT": "on"
+    "RATE_LIMIT": "on",
+    // Cloudflare Access caller auth on POST /colours. Inert until provisioned
+    // (like Turnstile): set both to your team domain and this API's Access AUD
+    // tag to enforce. Neither is secret. See src/auth.ts and docs/security.
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": ""
   },
   // Native Workers Rate Limiting (free, in-memory per-colo). Two limiters guard
   // POST /colours: per-client-IP stops a single flooder; the global cap is the

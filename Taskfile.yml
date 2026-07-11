@@ -37,6 +37,12 @@ tasks:
       - npx tsc -p experiences/agent
       - npx tsc -p experiences/mobile
 
+  test:shared:
+    desc: "Shared Access JWT verification unit tests (hermetic, locally-signed keys)"
+    dir: shared/access-jwt
+    cmds:
+      - npx vitest run
+
   test:unit:
     desc: Behaviour-service unit tests (hermetic, in workerd via vitest-pool-workers)
     dir: domain/api
@@ -79,6 +85,7 @@ tasks:
       - task: lint:all
       - task: gen:check
       - task: typecheck
+      - task: test:shared
       - task: test:unit
       - task: test:integration
       - task: test:products
