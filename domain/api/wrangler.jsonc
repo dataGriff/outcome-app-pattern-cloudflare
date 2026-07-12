@@ -16,9 +16,7 @@
     {
       "binding": "OPERATIONAL_STORE",
       "database_name": "todo",
-      // Placeholder from the decommissioned colour database — replace with the
-      // id `task bootstrap:cloud` prints at cutover. Local dev/tests don't care.
-      "database_id": "ac0ec552-e697-4af8-a383-669f4c63599d",
+      "database_id": "637bab81-7c5c-417a-97cd-5297f54780c9",
       "migrations_dir": "migrations"
     }
   ],
