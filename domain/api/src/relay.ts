@@ -75,11 +75,21 @@ export class OutboxRelayDO extends DurableObject<Env> {
       .run();
 
     // Best-effort live fan-out to SSE clients — not durable, exactly like the
-    // source's NATS→SSE bridge. The queue is the durable path.
-    const stream = this.env.STREAM.get(this.env.STREAM.idFromName("stream"));
+    // source's NATS→SSE bridge. The queue is the durable path. Each event is
+    // routed to its owner's StreamDO (idFromName(user_id)), so a user's feed
+    // can only ever carry their own todos — isolation by construction.
+    const frames: { user: string; frame: { type: string; data: unknown } }[] = [];
+    for (const r of results) {
+      const event = JSON.parse(r.payload) as { type: string; data?: { user_id?: unknown } };
+      const user = event.data?.user_id;
+      if (typeof user !== "string") continue;
+      frames.push({ user, frame: { type: event.type, data: event.data } });
+    }
     this.ctx.waitUntil(
       Promise.allSettled(
-        results.map((r) => stream.broadcast(JSON.parse(r.payload).data)),
+        frames.map(({ user, frame }) =>
+          this.env.STREAM.get(this.env.STREAM.idFromName(user)).broadcast(frame),
+        ),
       ),
     );
     return results.length;

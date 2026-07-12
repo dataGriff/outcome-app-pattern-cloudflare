@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:outcome-app-pattern:event:todo",
+  "title": "TodoEvent",
+  "description": "CloudEvent published to the events role (the Cloudflare Queue 'todo-events') whenever the todo domain mutates a todo. One snapshot schema with a `type` discriminant covers create, update, complete and delete. The authoritative copy of this schema also lives inline in domain/contracts/api/todo-service.asyncapi.yaml.",
+  "type": "object",
+  "required": ["id", "source", "specversion", "type", "data"],
+  "properties": {
+    "id": { "type": "string", "description": "Unique event identifier." },
+    "source": {
+      "type": "string",
+      "description": "Event source URN.",
+      "const": "urn:outcome-app-pattern:todo-service"
+    },
+    "specversion": { "type": "string", "enum": ["1.0"] },
+    "type": {
+      "type": "string",
+      "enum": ["todo.created", "todo.updated", "todo.completed", "todo.deleted"]
+    },
+    "time": { "type": "string", "format": "date-time" },
+    "data": {
+      "type": "object",
+      "description": "Snapshot of the todo at mutation time. `title` is transport-only — the data-product consumer strips it before landing the analytical layer.",
+      "required": ["todo_id", "user_id", "title", "completed", "timestamp"],
+      "properties": {
+        "todo_id": { "type": "string" },
+        "user_id": { "type": "string", "description": "The owning user — the Cloudflare Access `sub` claim." },
+        "title": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

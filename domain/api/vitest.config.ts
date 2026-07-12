@@ -8,7 +8,7 @@ export default defineConfig({
     cloudflareTest(async () => {
       const migrations = await readD1Migrations(path.join(import.meta.dirname, "migrations"));
       const asyncapiYaml = readFileSync(
-        path.join(import.meta.dirname, "../contracts/api/behaviour-service.asyncapi.yaml"),
+        path.join(import.meta.dirname, "../contracts/api/todo-service.asyncapi.yaml"),
         "utf8",
       );
       return {

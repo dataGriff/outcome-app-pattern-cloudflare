@@ -1,0 +1,232 @@
+openapi: 3.1.0
+info:
+  title: Todo Service
+  version: 1.0.0
+  description: |
+    The source-aligned domain's HTTP contract. This spec is authored and owned
+    here as the source of truth; the Workers implementation must conform to it
+    (verified by the Schemathesis conformance test and the spec-drift test) and
+    both the server's handler types and the experiences' typed client are
+    generated from it.
+
+    Every endpoint operates on the calling user's own todos: the user is the
+    Cloudflare Access `sub` claim, and every query is scoped to it. Auth is
+    config-gated — with Access unprovisioned (`ACCESS_AUD` unset) every request
+    acts as the fixed dev identity, so local dev and the hermetic suite need no
+    tokens. A todo belonging to another user is indistinguishable from a
+    missing one (404), so ids never leak across users.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: http://localhost:8787
+    description: Local todo service (wrangler dev)
+paths:
+  /todos:
+    post:
+      operationId: createTodo
+      summary: Create a todo
+      description: |
+        Create a todo for the calling user, persist it, and enqueue a
+        todo.created event.
+
+        When Cloudflare Access is provisioned, every call requires a valid
+        Access identity JWT (`Cf-Access-Jwt-Assertion`, or a bearer token for
+        native / direct callers). First-party channels forward the caller's
+        token over their service binding. The `accessJwt` / `bearerAuth`
+        schemes below document the credential; the 401 documents the failure.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewTodo"
+      responses:
+        "201":
+          description: The created todo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Todo"
+        "401":
+          description: Missing or invalid Access token (only when Access is provisioned).
+        "422":
+          description: Invalid body — title missing, empty, or over 256 characters.
+        "429":
+          description: Rate limited — too many writes. Retry after the Retry-After interval.
+    get:
+      operationId: listTodos
+      summary: The calling user's todos (most recent first)
+      parameters:
+        - name: completed
+          in: query
+          required: false
+          description: Filter by completion state.
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: The user's todos, most recent first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Todo"
+        "401":
+          description: Missing or invalid Access token (only when Access is provisioned).
+        "422":
+          description: Invalid query parameter.
+  /todos/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getTodo
+      summary: A single todo by id
+      responses:
+        "200":
+          description: The todo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Todo"
+        "401":
+          description: Missing or invalid Access token (only when Access is provisioned).
+        "404":
+          description: No such todo for the calling user (missing ids and other users' ids are indistinguishable).
+    patch:
+      operationId: updateTodo
+      summary: Rename and/or set completion on a todo
+      description: |
+        Partial update. Completing emits todo.completed; renaming or
+        un-completing emits todo.updated. `completed_at` is set when a todo
+        transitions to completed and cleared when it is un-completed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TodoPatch"
+      responses:
+        "200":
+          description: The updated todo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Todo"
+        "401":
+          description: Missing or invalid Access token (only when Access is provisioned).
+        "404":
+          description: No such todo for the calling user.
+        "422":
+          description: Invalid body — empty patch, invalid title, or invalid completed.
+        "429":
+          description: Rate limited — too many writes. Retry after the Retry-After interval.
+    delete:
+      operationId: deleteTodo
+      summary: Delete a todo
+      responses:
+        "204":
+          description: Deleted (emits todo.deleted).
+        "401":
+          description: Missing or invalid Access token (only when Access is provisioned).
+        "404":
+          description: No such todo for the calling user.
+        "429":
+          description: Rate limited — too many writes. Retry after the Retry-After interval.
+  /events/stream:
+    get:
+      operationId: eventsStream
+      summary: Server-Sent Events feed of the calling user's todo events
+      description: |
+        Long-lived text/event-stream, scoped to the calling user — each frame
+        is `{type, data}` where `type` is one of the todo event types and
+        `data` is the todo snapshot. Consumed by the web proxy, the mobile
+        app's SSE reader, and the agent. Excluded from request-conformance
+        fuzzing because it never terminates.
+      responses:
+        "200":
+          description: An SSE stream of the user's todo events.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          description: Missing or invalid Access token (only when Access is provisioned).
+components:
+  securitySchemes:
+    accessJwt:
+      type: apiKey
+      in: header
+      name: Cf-Access-Jwt-Assertion
+      description: |
+        Cloudflare Access identity JWT. Injected by Access at the edge for
+        browser flows and forwarded by first-party channels over their service
+        binding. Validated in-Worker against the team's public JWKS.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        The same Access JWT presented as a bearer token — used by native (mobile)
+        and direct API callers that can't rely on the edge-injected header.
+  schemas:
+    Todo:
+      type: object
+      required:
+        - id
+        - title
+        - completed
+        - created_at
+        - completed_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 1
+          maxLength: 256
+        completed:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: ["string", "null"]
+          format: date-time
+    NewTodo:
+      type: object
+      required:
+        - title
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 256
+    TodoPatch:
+      type: object
+      description: At least one of title / completed must be present.
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 256
+        completed:
+          type: boolean

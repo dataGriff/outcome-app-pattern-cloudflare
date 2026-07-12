@@ -1,0 +1,10 @@
+# Schemathesis negative-mode fuzzing can't represent "wrong type" for scalar
+# query params — everything is a string on the wire — so its
+# negative_data_rejection check false-positives on GET /todos with requests
+# that are actually valid (e.g. limit generated as the string "91"). Disable
+# that one check for that one operation; the genuinely representable negative
+# cases (unknown params, out-of-range limit, non-boolean completed) are locked
+# down by the hermetic suite, and body negativity on POST/PATCH keeps full teeth.
+[[operations]]
+include-name = "GET /todos"
+checks.negative_data_rejection.enabled = false
