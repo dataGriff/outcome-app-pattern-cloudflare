@@ -11,6 +11,9 @@
   // cert on deploy (requires the zone to be active). The *.workers.dev URL stays
   // live too; the in-Worker Access check (src/auth.ts) covers both hostnames.
   "routes": [{ "pattern": "todo-api.domainapps.org", "custom_domain": true }],
+  // Keep the *.workers.dev URL live alongside the custom domain (declaring
+  // routes otherwise disables it) — the CI verify job smokes workers.dev.
+  "workers_dev": true,
   "rules": [{ "type": "Text", "globs": ["**/*.yaml"], "fallthrough": true }],
   "d1_databases": [
     {
