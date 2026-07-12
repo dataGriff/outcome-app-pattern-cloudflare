@@ -2,7 +2,7 @@ import { SignJWT, generateKeyPair, type JWTVerifyGetKey } from "jose";
 import { describe, expect, it } from "vitest";
 import { DEV_IDENTITY, verifyAccessJwt, type AccessConfig } from "./index";
 
-const TEAM = "https://colour.cloudflareaccess.com";
+const TEAM = "https://todo.cloudflareaccess.com";
 const AUD = "test-aud-tag";
 const CONFIG: AccessConfig = { teamDomain: TEAM, aud: AUD };
 
@@ -21,7 +21,7 @@ async function sign(claims: Record<string, unknown>, opts?: { aud?: string; iss?
 }
 
 function req(headers: Record<string, string> = {}): Request {
-  return new Request("https://colour-api.domainapps.org/colours", { method: "POST", headers });
+  return new Request("https://todo-api.domainapps.org/todos", { method: "POST", headers });
 }
 
 describe("verifyAccessJwt", () => {

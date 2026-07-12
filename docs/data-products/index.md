@@ -1,14 +1,21 @@
 # Data products
 
 The raw operational product is the durable **system of record** — kept forever, never
-re-scanned wholesale. Both products live in the one `colour-data` R2 bucket.
+re-scanned wholesale. Both products live in the one `todo-data` R2 bucket.
+
+Both are **deliberately PII-free**: the queue consumer lands
+`{event_type, todo_id, user_id, timestamp}` by explicit field picks, so the transported todo
+title (user content) structurally cannot reach this 10-year-retention layer, and `user_id` is
+the opaque Cloudflare Access `sub` claim — never an email. The curated product aggregates
+across users to `{date, event_type, count}` (the created-vs-completed burn-up). The hermetic
+suite and the CI verify job both assert the no-title bar.
 
 ## Storage layout
 
 ```
-colour-operational/dt=YYYY-MM-DD/<ts>-<id>.jsonl   # bronze — immutable, date-partitioned
-colour-operational/dt=YYYY-MM-DD/part-0000.jsonl   #   sealed day, fragments compacted to one
-colour-performance/dt=YYYY-MM-DD/part.parquet      # silver — per-day curated Parquet
+todo-operational/dt=YYYY-MM-DD/<ts>-<id>.jsonl   # bronze — immutable, date-partitioned
+todo-operational/dt=YYYY-MM-DD/part-0000.jsonl   #   sealed day, fragments compacted to one
+todo-performance/dt=YYYY-MM-DD/part.parquet      # silver — per-day curated Parquet
 _state/summariser.json                             # watermark: { "sealedThrough": "YYYY-MM-DD" }
 ```
 
@@ -17,7 +24,7 @@ _state/summariser.json                             # watermark: { "sealedThrough
 The summariser is **incremental**: each run recomputes only the open window (today + a grace
 day — `SUMMARISER_OPEN_DAYS`, default 2), then seals each closed day exactly once:
 
-1. writes its per-day Parquet under `colour-performance/dt=…/`,
+1. writes its per-day Parquet under `todo-performance/dt=…/`,
 2. compacts its raw fragments to a single `part-0000.jsonl`,
 3. advances the watermark in `_state/summariser.json`.
 

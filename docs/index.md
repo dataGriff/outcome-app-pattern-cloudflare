@@ -7,7 +7,7 @@ The canonical topic index for this repo — for humans and agents alike. Entry f
 | Topic | What it covers |
 | --- | --- |
 | [Architecture](architecture/index.md) | The pattern, the three zones, and the role → Cloudflare-primitive mapping. |
-| [Contracts](contracts/index.md) | The OpenAPI, AsyncAPI, and data contracts (copied from the source with infra-only edits). |
+| [Contracts](contracts/index.md) | The OpenAPI, AsyncAPI, and data contracts (authored here — the todo domain's source of truth). |
 | [Development](development/index.md) | Local dev (multi-process `wrangler dev`), the Taskfile, and conventions. |
 | [Testing](testing/index.md) | The hermetic suite and the post-deploy `datacontract test` against R2. |
 | [Data products](data-products/index.md) | The R2 storage model — bronze/silver, day-sealing, and the incremental summariser watermark. |
