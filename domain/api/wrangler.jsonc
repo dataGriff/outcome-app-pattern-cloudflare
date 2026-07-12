@@ -11,14 +11,15 @@
   // cert on deploy (requires the zone to be active). The *.workers.dev URL stays
   // live too; the in-Worker Access check (src/auth.ts) covers both hostnames.
   "routes": [{ "pattern": "todo-api.domainapps.org", "custom_domain": true }],
+  // Keep the *.workers.dev URL live alongside the custom domain (declaring
+  // routes otherwise disables it) — the CI verify job smokes workers.dev.
+  "workers_dev": true,
   "rules": [{ "type": "Text", "globs": ["**/*.yaml"], "fallthrough": true }],
   "d1_databases": [
     {
       "binding": "OPERATIONAL_STORE",
       "database_name": "todo",
-      // Placeholder from the decommissioned colour database — replace with the
-      // id `task bootstrap:cloud` prints at cutover. Local dev/tests don't care.
-      "database_id": "ac0ec552-e697-4af8-a383-669f4c63599d",
+      "database_id": "637bab81-7c5c-417a-97cd-5297f54780c9",
       "migrations_dir": "migrations"
     }
   ],
