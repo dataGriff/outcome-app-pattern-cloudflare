@@ -11,7 +11,7 @@
   // Custom domain on the domainapps.org zone — the hostname the Access app fronts
   // (Access as the OAuth provider for /mcp).
   "routes": [{ "pattern": "colour-agent.domainapps.org", "custom_domain": true }],
-  "services": [{ "binding": "DOMAIN_API", "service": "colour-behaviour-service" }],
+  "services": [{ "binding": "DOMAIN_API", "service": "todo-behaviour-service" }],
   "durable_objects": {
     "bindings": [{ "name": "MCP_OBJECT", "class_name": "ColourAgent" }]
   },

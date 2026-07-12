@@ -8,6 +8,6 @@ await applyD1Migrations(env.OPERATIONAL_STORE, env.TEST_MIGRATIONS);
 beforeEach(async () => {
   await env.OPERATIONAL_STORE.batch([
     env.OPERATIONAL_STORE.prepare("DELETE FROM outbox"),
-    env.OPERATIONAL_STORE.prepare("DELETE FROM colours"),
+    env.OPERATIONAL_STORE.prepare("DELETE FROM todos"),
   ]);
 });

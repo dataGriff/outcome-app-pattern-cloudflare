@@ -1,0 +1,96 @@
+asyncapi: '3.0.0'
+info:
+  title: Todo Service Events
+  version: '1.0.0'
+  description: |
+    Events emitted by the todo domain: one snapshot-shaped message with a
+    `type` discriminant covering create, update, complete and delete. The
+    snapshot carries `title` for live UI delivery only — the data-product
+    consumer strips it before landing the long-retention analytical layer.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  tags:
+    - name: todo
+      description: Operations related to the todo service
+servers:
+  events:
+    host: workers.cloudflare.com
+    protocol: https
+    description: |
+      The events role. Physical transport is the Cloudflare Queue 'todo-events',
+      reached via Worker bindings rather than a network endpoint. The outbox relay
+      drains to this queue (whose single consumer writes the data products); live
+      delivery to the experiences is the per-user SSE bridge at GET /events/stream
+      on the todo service — one logical todoEvents channel, two physical hops.
+channels:
+  todoEvents:
+    description: Events emitted when a user's todo is created, updated, completed or deleted
+    messages:
+      todoEvent:
+        $ref: '#/components/messages/TodoEvent'
+components:
+  messages:
+    TodoEvent:
+      name: TodoEvent
+      title: Todo Event
+      summary: Snapshot event emitted after any todo mutation
+      contentType: application/json
+      payload:
+        type: object
+        required:
+          - id
+          - source
+          - specversion
+          - type
+          - data
+        properties:
+          id:
+            type: string
+            description: Unique event identifier
+          source:
+            type: string
+            const: urn:outcome-app-pattern:todo-service
+            description: Event source URN
+          specversion:
+            type: string
+            enum: ["1.0"]
+            description: CloudEvents spec version
+          type:
+            type: string
+            enum:
+              - todo.created
+              - todo.updated
+              - todo.completed
+              - todo.deleted
+            description: Which mutation produced this event
+          time:
+            type: string
+            format: date-time
+            description: Event time
+          data:
+            type: object
+            description: Snapshot of the todo at mutation time
+            required:
+              - todo_id
+              - user_id
+              - title
+              - completed
+              - timestamp
+            properties:
+              todo_id:
+                type: string
+                description: The todo's id
+              user_id:
+                type: string
+                description: The owning user — the Cloudflare Access `sub` claim
+              title:
+                type: string
+                description: The todo title (transport-only — stripped before the analytical layer)
+              completed:
+                type: boolean
+                description: Completion state after the mutation (state before, for a delete)
+              timestamp:
+                type: string
+                format: date-time
+                description: Mutation time

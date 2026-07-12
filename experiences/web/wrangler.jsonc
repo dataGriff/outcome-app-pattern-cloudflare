@@ -14,7 +14,7 @@
     "directory": "./public",
     "run_worker_first": ["/api/*"]
   },
-  "services": [{ "binding": "DOMAIN_API", "service": "colour-behaviour-service" }],
+  "services": [{ "binding": "DOMAIN_API", "service": "todo-behaviour-service" }],
   // Cloudflare Access identity for this channel. Put this Worker's hostname
   // behind an Access self-hosted app, then set both to validate the injected
   // JWT here and forward it to the domain. Inert until set. See docs/security.

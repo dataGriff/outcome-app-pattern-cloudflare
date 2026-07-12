@@ -4,54 +4,58 @@
  */
 
 export interface paths {
-    "/colours": {
+    "/todos": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Recent colours (most recent first) */
-        get: operations["colourHistory"];
+        /** The calling user's todos (most recent first) */
+        get: operations["listTodos"];
         put?: never;
         /**
-         * Generate a colour
-         * @description Generate a colour, persist it, and enqueue a colour.generated event.
+         * Create a todo
+         * @description Create a todo for the calling user, persist it, and enqueue a
+         *     todo.created event.
          *
-         *     When Cloudflare Access is provisioned, the write requires a valid Access
-         *     identity JWT (`Cf-Access-Jwt-Assertion`, or a bearer token for native /
-         *     direct callers). First-party channels forward the caller's token over
-         *     their service binding. Auth is config-gated: unset in the demo, the
-         *     endpoint is open. Reads and the SSE feed are unauthenticated.
-         *
-         *     Not marked as an unconditional `security` requirement because enforcement
-         *     is conditional: config-gated (off until Access is provisioned) and
-         *     transport-dependent (first-party service-binding callers are trusted
-         *     without a token). The `accessJwt` / `bearerAuth` schemes below document
-         *     the credential a direct caller presents; the 401 documents the failure.
+         *     When Cloudflare Access is provisioned, every call requires a valid
+         *     Access identity JWT (`Cf-Access-Jwt-Assertion`, or a bearer token for
+         *     native / direct callers). First-party channels forward the caller's
+         *     token over their service binding. The `accessJwt` / `bearerAuth`
+         *     schemes below document the credential; the 401 documents the failure.
          */
-        post: operations["createColour"];
+        post: operations["createTodo"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/colours/latest": {
+    "/todos/{id}": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                id: string;
+            };
             cookie?: never;
         };
-        /** The most recently generated colour */
-        get: operations["latestColour"];
+        /** A single todo by id */
+        get: operations["getTodo"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete a todo */
+        delete: operations["deleteTodo"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Rename and/or set completion on a todo
+         * @description Partial update. Completing emits todo.completed; renaming or
+         *     un-completing emits todo.updated. `completed_at` is set when a todo
+         *     transitions to completed and cleared when it is un-completed.
+         */
+        patch: operations["updateTodo"];
         trace?: never;
     };
     "/events/stream": {
@@ -62,10 +66,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Server-Sent Events feed of colour.generated events
-         * @description Long-lived text/event-stream. Consumed by browser EventSource, the
-         *     mobile app, and the agent. Excluded from request-conformance fuzzing
-         *     because it never terminates.
+         * Server-Sent Events feed of the calling user's todo events
+         * @description Long-lived text/event-stream, scoped to the calling user — each frame
+         *     is `{type, data}` where `type` is one of the todo event types and
+         *     `data` is the todo snapshot. Consumed by the web proxy, the mobile
+         *     app's SSE reader, and the agent. Excluded from request-conformance
+         *     fuzzing because it never terminates.
          */
         get: operations["eventsStream"];
         put?: never;
@@ -80,11 +86,23 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        ColourEvent: {
-            /** @enum {string} */
-            colour: "red" | "amber" | "green";
+        Todo: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            completed: boolean;
             /** Format: date-time */
-            timestamp: string;
+            created_at: string;
+            /** Format: date-time */
+            completed_at: string | null;
+        };
+        NewTodo: {
+            title: string;
+        };
+        /** @description At least one of title / completed must be present. */
+        TodoPatch: {
+            title?: string;
+            completed?: boolean;
         };
     };
     responses: never;
@@ -95,9 +113,11 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    colourHistory: {
+    listTodos: {
         parameters: {
             query?: {
+                /** @description Filter by completion state. */
+                completed?: boolean;
                 limit?: number;
             };
             header?: never;
@@ -106,14 +126,21 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Recent colours, most recent first. */
+            /** @description The user's todos, most recent first. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ColourEvent"][];
+                    "application/json": components["schemas"]["Todo"][];
                 };
+            };
+            /** @description Missing or invalid Access token (only when Access is provisioned). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Invalid query parameter. */
             422: {
@@ -124,22 +151,26 @@ export interface operations {
             };
         };
     };
-    createColour: {
+    createTodo: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewTodo"];
+            };
+        };
         responses: {
-            /** @description The generated colour. */
-            200: {
+            /** @description The created todo. */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ColourEvent"];
+                    "application/json": components["schemas"]["Todo"];
                 };
             };
             /** @description Missing or invalid Access token (only when Access is provisioned). */
@@ -149,7 +180,14 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Rate limited — too many colour generations. Retry after the Retry-After interval. */
+            /** @description Invalid body — title missing, empty, or over 256 characters. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limited — too many writes. Retry after the Retry-After interval. */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -158,26 +196,130 @@ export interface operations {
             };
         };
     };
-    latestColour: {
+    getTodo: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The latest colour. */
+            /** @description The todo. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ColourEvent"];
+                    "application/json": components["schemas"]["Todo"];
                 };
             };
-            /** @description No colours generated yet. */
+            /** @description Missing or invalid Access token (only when Access is provisioned). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such todo for the calling user (missing ids and other users' ids are indistinguishable). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteTodo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted (emits todo.deleted). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid Access token (only when Access is provisioned). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such todo for the calling user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limited — too many writes. Retry after the Retry-After interval. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateTodo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TodoPatch"];
+            };
+        };
+        responses: {
+            /** @description The updated todo. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Todo"];
+                };
+            };
+            /** @description Missing or invalid Access token (only when Access is provisioned). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such todo for the calling user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid body — empty patch, invalid title, or invalid completed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limited — too many writes. Retry after the Retry-After interval. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -194,7 +336,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description An SSE stream of colour payloads. */
+            /** @description An SSE stream of the user's todo events. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -202,6 +344,13 @@ export interface operations {
                 content: {
                     "text/event-stream": string;
                 };
+            };
+            /** @description Missing or invalid Access token (only when Access is provisioned). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

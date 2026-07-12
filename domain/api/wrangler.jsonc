@@ -1,8 +1,8 @@
 {
-  // The behaviour API — the one owner of the colour domain's behaviour.
+  // The todo service — the one owner of the todo domain's behaviour.
   // Bindings are role-named (operational-store, events, relay, stream); the
   // honest implementation names live in the resource declarations below.
-  "name": "colour-behaviour-service",
+  "name": "todo-behaviour-service",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
   "dev": { "port": 8787 },
@@ -10,18 +10,20 @@
   // Custom domain on the domainapps.org zone. Auto-creates the DNS record + TLS
   // cert on deploy (requires the zone to be active). The *.workers.dev URL stays
   // live too; the in-Worker Access check (src/auth.ts) covers both hostnames.
-  "routes": [{ "pattern": "colour-api.domainapps.org", "custom_domain": true }],
+  "routes": [{ "pattern": "todo-api.domainapps.org", "custom_domain": true }],
   "rules": [{ "type": "Text", "globs": ["**/*.yaml"], "fallthrough": true }],
   "d1_databases": [
     {
       "binding": "OPERATIONAL_STORE",
-      "database_name": "colour",
+      "database_name": "todo",
+      // Placeholder from the decommissioned colour database — replace with the
+      // id `task bootstrap:cloud` prints at cutover. Local dev/tests don't care.
       "database_id": "ac0ec552-e697-4af8-a383-669f4c63599d",
       "migrations_dir": "migrations"
     }
   ],
   "queues": {
-    "producers": [{ "binding": "EVENTS", "queue": "colour-events" }]
+    "producers": [{ "binding": "EVENTS", "queue": "todo-events" }]
   },
   "durable_objects": {
     "bindings": [
@@ -33,21 +35,23 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["OutboxRelayDO", "StreamDO"] }],
   "vars": {
     "OUTBOX_RETENTION_SECONDS": "3600",
-    // Abuse guard for the one write endpoint (POST /colours). "on" here so the
-    // deployed API enforces it; local dev + the Schemathesis run override it to
-    // "off" (--var), and vitest sets "off" too, so the hermetic gates aren't
-    // throttled. See src/ratelimit.ts and docs/deployment.
+    // Abuse guard for the write endpoints (POST/PATCH/DELETE on todos). "on"
+    // here so the deployed API enforces it; local dev + the Schemathesis run
+    // override it to "off" (--var), and vitest sets "off" too, so the hermetic
+    // gates aren't throttled. See src/ratelimit.ts and docs/deployment.
     "RATE_LIMIT": "on",
-    // Cloudflare Access caller auth on POST /colours. Inert until provisioned
-    // (like Turnstile): set both to your team domain and this API's Access AUD
-    // tag to enforce. Neither is secret. See src/auth.ts and docs/security.
+    // Cloudflare Access caller auth on every todo endpoint. Inert until
+    // provisioned (like Turnstile): unset, every request acts as the fixed dev
+    // identity. Set both to your team domain and this API's Access AUD tag to
+    // enforce. Neither is secret. See src/auth.ts and docs/security.
     "ACCESS_TEAM_DOMAIN": "https://hungovercoders.cloudflareaccess.com",
     "ACCESS_AUD": ""
   },
   // Native Workers Rate Limiting (free, in-memory per-colo). Two limiters guard
-  // POST /colours: per-client-IP stops a single flooder; the global cap is the
-  // wallet ceiling against distributed abuse driving R2 writes/storage. The
-  // simple limiter's period must be 10 or 60 seconds.
+  // the todo mutations: per-caller (client IP, or user sub over a service
+  // binding) stops a single flooder; the global cap is the wallet ceiling
+  // against distributed abuse driving R2 writes/storage. The simple limiter's
+  // period must be 10 or 60 seconds.
   "unsafe": {
     "bindings": [
       { "name": "RL_PER_IP", "type": "ratelimit", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },

@@ -3,11 +3,11 @@ tasks:
   up:
     desc: Run the whole stack locally — one wrangler dev per worker, on its own port
     cmds:
-      - npx wrangler d1 migrations apply colour --local -c domain/api/wrangler.jsonc
+      - npx wrangler d1 migrations apply todo --local -c domain/api/wrangler.jsonc
       # Four separate dev processes so each channel has its own port (domain 8787,
       # data-products 8788, web 8789, agent 8790). Wrangler's local dev registry
       # wires the cross-process bindings — service bindings AND queue delivery —
-      # so a colour POSTed to the domain flows through to the data-product consumer.
+      # so a todo created on the domain flows through to the data-product consumer.
       # Each needs a distinct --inspector-port or they collide on 9229.
       - |
         trap 'kill 0' EXIT
@@ -24,9 +24,9 @@ tasks:
       - npx expo start
 
   post:api:
-    desc: Perform a simple POST request to the /colours endpoint
+    desc: Create a todo via POST /todos (acts as the dev identity locally)
     cmds:
-      - curl -X POST http://localhost:8787/colours
+      - 'curl -X POST http://localhost:8787/todos -H "content-type: application/json" -d ''{"title":"try the local stack"}'''
 
   typecheck:
     desc: Typecheck every worker + the mobile app against the generated contract types
@@ -71,13 +71,13 @@ tasks:
     desc: OpenAPI request-conformance fuzzing (Schemathesis) against wrangler dev
     cmds:
       - python3 -m pip install --quiet schemathesis
-      - npx wrangler d1 migrations apply colour --local -c domain/api/wrangler.jsonc
+      - npx wrangler d1 migrations apply todo --local -c domain/api/wrangler.jsonc
       - |
         npx wrangler dev -c domain/api/wrangler.jsonc --var RATE_LIMIT:off > /tmp/wrangler-conformance.log 2>&1 &
         DEV_PID=$!
         trap "kill $DEV_PID 2>/dev/null" EXIT
         for i in $(seq 1 60); do curl -sf http://localhost:8787/openapi.json > /dev/null && break; sleep 1; done
-        schemathesis run domain/contracts/api/behaviour-service.openapi.yaml --url http://localhost:8787 --exclude-path /events/stream
+        schemathesis run domain/contracts/api/todo-service.openapi.yaml --url http://localhost:8787 --exclude-path /events/stream
 
   ci:
     desc: Lint all three contracts + typecheck, unit, integration and conformance tests
@@ -101,7 +101,7 @@ tasks:
   deploy:
     desc: "Apply remote D1 migrations, then deploy all four workers (domain first, so the others' service bindings resolve). Needs CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID."
     cmds:
-      - npx wrangler d1 migrations apply colour --remote -c domain/api/wrangler.jsonc
+      - npx wrangler d1 migrations apply todo --remote -c domain/api/wrangler.jsonc
       - npx wrangler deploy -c domain/api/wrangler.jsonc
       - npx wrangler deploy -c platform/data-products/wrangler.jsonc
       - npx wrangler deploy -c experiences/web/wrangler.jsonc
@@ -117,16 +117,16 @@ tasks:
   lint:openapi:
     desc: Validate the OpenAPI contract (source of truth for the HTTP API)
     sources:
-      - domain/contracts/api/behaviour-service.openapi.yaml
+      - domain/contracts/api/todo-service.openapi.yaml
     cmds:
-      - python3 -m pip install 'openapi-spec-validator' && openapi-spec-validator domain/contracts/api/behaviour-service.openapi.yaml
+      - python3 -m pip install 'openapi-spec-validator' && openapi-spec-validator domain/contracts/api/todo-service.openapi.yaml
 
   lint:asyncapi:
     desc: Lint the AsyncAPI contract (requires asyncapi CLI)
     sources:
-      - domain/contracts/api/behaviour-service.asyncapi.yaml
+      - domain/contracts/api/todo-service.asyncapi.yaml
     cmds:
-      - npx -y @asyncapi/cli@latest validate domain/contracts/api/behaviour-service.asyncapi.yaml
+      - npx -y @asyncapi/cli@latest validate domain/contracts/api/todo-service.asyncapi.yaml
 
   lint:datacontract:
     desc: Lint the data-product contracts (requires datacontract CLI)
@@ -152,8 +152,8 @@ tasks:
   gen:types:
     desc: Generate server handler types and the mobile client from the committed OpenAPI contract (one spec, two consumers)
     sources:
-      - domain/contracts/api/behaviour-service.openapi.yaml
+      - domain/contracts/api/todo-service.openapi.yaml
     cmds:
       - mkdir -p domain/api/types experiences/mobile/src/api
-      - npx openapi-typescript domain/contracts/api/behaviour-service.openapi.yaml -o domain/api/types/api.d.ts
-      - npx openapi-typescript domain/contracts/api/behaviour-service.openapi.yaml -o experiences/mobile/src/api/schema.ts
+      - npx openapi-typescript domain/contracts/api/todo-service.openapi.yaml -o domain/api/types/api.d.ts
+      - npx openapi-typescript domain/contracts/api/todo-service.openapi.yaml -o experiences/mobile/src/api/schema.ts

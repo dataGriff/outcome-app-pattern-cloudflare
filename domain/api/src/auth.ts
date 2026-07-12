@@ -1,36 +1,32 @@
-import { type AccessIdentity, verifyAccessJwt } from "@todo/access-jwt";
+import { DEV_IDENTITY, type AccessIdentity, verifyAccessJwt } from "@todo/access-jwt";
 import type { Context, Next } from "hono";
 import type { Env } from "./env";
 
-/** Requires a valid Cloudflare Access identity on the write endpoint. Access is
- * the identity provider; this only validates the JWT it issued — against
- * Access's public JWKS, in-process, because callers reach us over a service
- * binding that bypasses the edge, so the edge can't have checked it.
+/** Requires a Cloudflare Access identity on every todo endpoint. Access is the
+ * identity provider; this only validates the JWT it issued — against Access's
+ * public JWKS, in-process, because callers reach us over a service binding
+ * that bypasses the edge, so the edge can't have checked it.
  *
- * Trust model mirrors rateLimit's: a direct external caller sets an unspoofable
- * cf-connecting-ip and must present an Access token (a user JWT, or a service
- * token Access exchanges for one). The first-party web/agent channels reach us
- * over a service binding — no client IP, and not publicly invocable — so they're
- * trusted transport; the web channel additionally forwards the user's JWT so we
- * still learn who is calling. A present-but-invalid token is always rejected.
+ * Per-user data needs an identity on every request, so unlike the colour
+ * domain's transport-trust model there is no pass-through: with Access
+ * enabled, a missing or invalid token is always 401 — first-party channels
+ * must forward the caller's JWT over their service binding.
  *
  * Config-gated like rateLimit/Turnstile: with ACCESS_AUD unset the verifier
- * returns `disabled` and the endpoint stays open, so the hermetic gates and
- * local dev need no tokens. Set ACCESS_TEAM_DOMAIN + ACCESS_AUD to enforce. */
+ * returns `disabled` and every request acts as the fixed DEV_IDENTITY, so the
+ * hermetic gates and local dev need no tokens and still exercise the per-user
+ * paths. Set ACCESS_TEAM_DOMAIN + ACCESS_AUD to enforce. */
 export async function requireAuth(
-  c: Context<{ Bindings: Env; Variables: { identity?: AccessIdentity } }>,
+  c: Context<{ Bindings: Env; Variables: { identity: AccessIdentity } }>,
   next: Next,
 ): Promise<Response | void> {
   const result = await verifyAccessJwt(c.req.raw, {
     teamDomain: c.env.ACCESS_TEAM_DOMAIN,
     aud: c.env.ACCESS_AUD,
   });
-  if (result.status === "ok") c.set("identity", result.identity);
   if (result.status === "unauthorized") {
-    const direct = c.req.header("cf-connecting-ip");
-    if (result.reason === "invalid access token" || direct) {
-      return c.json({ detail: "unauthorized" }, 401);
-    }
+    return c.json({ detail: "unauthorized" }, 401);
   }
+  c.set("identity", result.status === "ok" ? result.identity : DEV_IDENTITY);
   await next();
 }

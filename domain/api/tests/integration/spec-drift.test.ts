@@ -29,6 +29,14 @@ function contractOperations(): Set<string> {
   return ops;
 }
 
+async function create(title: string): Promise<Response> {
+  return SELF.fetch("http://api/todos", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+}
+
 describe("spec drift", () => {
   it("route registry equals the contract's path×method surface", () => {
     const served = new Set(
@@ -45,33 +53,34 @@ describe("spec drift", () => {
     expect(await resp.json()).toEqual(openapiDoc);
   });
 
-  it("honours the contract's limit bounds and default", async () => {
-    const params = (openapiDoc.paths["/colours"].get as { parameters: LimitParam[] }).parameters;
+  it("honours the contract's limit bounds", async () => {
+    const params = (openapiDoc.paths["/todos"].get as { parameters: LimitParam[] }).parameters;
     const limit = params.find((p) => p.name === "limit");
     expect(limit).toBeDefined();
-    const { minimum, maximum, default: dflt } = limit!.schema;
+    const { minimum, maximum } = limit!.schema;
 
-    expect((await SELF.fetch(`http://api/colours?limit=${minimum - 1}`)).status).toBe(422);
-    expect((await SELF.fetch(`http://api/colours?limit=${maximum + 1}`)).status).toBe(422);
-    expect((await SELF.fetch("http://api/colours?limit=nonsense")).status).toBe(422);
-    expect((await SELF.fetch(`http://api/colours?limit=${minimum}`)).status).toBe(200);
-    expect((await SELF.fetch(`http://api/colours?limit=${maximum}`)).status).toBe(200);
-
-    for (let i = 0; i < dflt + 2; i++) {
-      await SELF.fetch("http://api/colours", { method: "POST" });
-    }
-    const body = (await (await SELF.fetch("http://api/colours")).json()) as unknown[];
-    expect(body).toHaveLength(dflt);
+    expect((await SELF.fetch(`http://api/todos?limit=${minimum - 1}`)).status).toBe(422);
+    expect((await SELF.fetch(`http://api/todos?limit=${maximum + 1}`)).status).toBe(422);
+    expect((await SELF.fetch("http://api/todos?limit=nonsense")).status).toBe(422);
+    expect((await SELF.fetch(`http://api/todos?limit=${minimum}`)).status).toBe(200);
+    expect((await SELF.fetch(`http://api/todos?limit=${maximum}`)).status).toBe(200);
   });
 
-  it("returns colours from the contract's enum", async () => {
-    const colourEvent = openapiDoc.components.schemas.ColourEvent as {
-      properties: { colour: { enum: string[] } };
+  it("honours the contract's title length bounds", async () => {
+    const newTodo = openapiDoc.components.schemas.NewTodo as {
+      properties: { title: { minLength: number; maxLength: number } };
     };
-    const enumValues = colourEvent.properties.colour.enum;
-    const body = (await (
-      await SELF.fetch("http://api/colours", { method: "POST" })
-    ).json()) as { colour: string };
-    expect(enumValues).toContain(body.colour);
+    const { minLength, maxLength } = newTodo.properties.title;
+
+    expect((await create("x".repeat(maxLength + 1))).status).toBe(422);
+    expect((await create("x".repeat(minLength - 1))).status).toBe(422);
+    expect((await create("x".repeat(maxLength))).status).toBe(201);
+    expect((await create("x".repeat(minLength))).status).toBe(201);
+  });
+
+  it("405s an unspec'd method on a templated path (contract-driven, not 404)", async () => {
+    const resp = await SELF.fetch(`http://api/todos/${crypto.randomUUID()}`, { method: "PUT" });
+    expect(resp.status).toBe(405);
+    expect(resp.headers.get("allow")).toContain("PATCH");
   });
 });

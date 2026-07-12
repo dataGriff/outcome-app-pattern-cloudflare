@@ -1,4 +1,5 @@
-/** SSE bridge: one Durable Object fans colour.generated out to SSE clients.
+/** SSE bridge: one Durable Object per user fans that user's todo events out
+ * to their SSE clients (the relay addresses objects by idFromName(user_id)).
  *
  * The queue is not browser-native, so this bridge is what lets web, mobile and
  * agent experiences all consume the same live event feed over plain HTTP.
