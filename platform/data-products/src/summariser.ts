@@ -1,7 +1,7 @@
-/** Incremental summariser: roll the colour-operational events up into the
- * colour-performance curated data product, one day at a time.
+/** Incremental summariser: roll the todo-operational events up into the
+ * todo-performance curated data product, one day at a time.
  *
- * The raw colour-operational log is the durable system of record — immutable,
+ * The raw todo-operational log is the durable system of record — immutable,
  * date-partitioned (dt=YYYY-MM-DD), kept forever. Rather than re-scan the whole
  * archive every run (the source repo's summarise_daily.py full recompute), this
  * reads only the *open window* (today + a grace day) and seals each closed day
@@ -12,19 +12,21 @@ import { parquetWriteBuffer } from "hyparquet-writer";
 import { OPERATIONAL_PREFIX, partitionPrefix } from "./consumer";
 import type { Env } from "./env";
 
-export const PERFORMANCE_PREFIX = "colour-performance/";
+export const PERFORMANCE_PREFIX = "todo-performance/";
 export const WATERMARK_KEY = "_state/summariser.json";
 const COMPACTED_NAME = "part-0000.jsonl";
 const DEFAULT_OPEN_DAYS = 2;
 
 interface OperationalRow {
-  colour: string;
+  event_type: string;
+  todo_id: string;
+  user_id: string;
   timestamp: string;
 }
 
 export interface PerformanceRow {
   date: string;
-  colour: string;
+  event_type: string;
   count: number;
 }
 
@@ -83,10 +85,10 @@ export async function readDay(env: Env, day: string): Promise<OperationalRow[]> 
 
 function aggregateDay(day: string, rows: OperationalRow[]): PerformanceRow[] {
   const counts = new Map<string, number>();
-  for (const row of rows) counts.set(row.colour, (counts.get(row.colour) ?? 0) + 1);
+  for (const row of rows) counts.set(row.event_type, (counts.get(row.event_type) ?? 0) + 1);
   return [...counts.entries()]
-    .map(([colour, count]) => ({ date: day, colour, count }))
-    .sort((a, b) => a.colour.localeCompare(b.colour));
+    .map(([event_type, count]) => ({ date: day, event_type, count }))
+    .sort((a, b) => a.event_type.localeCompare(b.event_type));
 }
 
 async function writeDayParquet(env: Env, day: string, agg: PerformanceRow[]): Promise<void> {
@@ -94,7 +96,7 @@ async function writeDayParquet(env: Env, day: string, agg: PerformanceRow[]): Pr
   const buffer = parquetWriteBuffer({
     columnData: [
       { name: "date", data: agg.map((r) => r.date), type: "STRING" },
-      { name: "colour", data: agg.map((r) => r.colour), type: "STRING" },
+      { name: "event_type", data: agg.map((r) => r.event_type), type: "STRING" },
       { name: "count", data: agg.map((r) => r.count), type: "INT32" },
     ],
   });

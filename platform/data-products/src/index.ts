@@ -1,5 +1,5 @@
 import { consume } from "./consumer";
-import type { ColourGeneratedEvent, Env } from "./env";
+import type { Env, TodoEvent } from "./env";
 import { app } from "./products";
 import { summariseOnce } from "./summariser";
 
@@ -9,4 +9,4 @@ export default {
   scheduled: async (_controller, env) => {
     await summariseOnce(env);
   },
-} satisfies ExportedHandler<Env, ColourGeneratedEvent>;
+} satisfies ExportedHandler<Env, TodoEvent>;

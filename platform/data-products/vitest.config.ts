@@ -15,8 +15,8 @@ export default defineConfig({
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
         bindings: {
-          OPERATIONAL_CONTRACT_YAML: contract("colour-operational"),
-          PERFORMANCE_CONTRACT_YAML: contract("colour-performance"),
+          OPERATIONAL_CONTRACT_YAML: contract("todo-operational"),
+          PERFORMANCE_CONTRACT_YAML: contract("todo-performance"),
         },
       },
     }),

@@ -1,0 +1,46 @@
+dataContractSpecification: 1.2.0
+id: urn:outcome-app-pattern:data-product:todo-performance
+info:
+  title: Todo — Performance & Status
+  version: 1.0.0
+  description: >
+    Purpose: todo activity over time, plus current status at a glance. Daily counts
+    per event type let consumers see creation vs completion trends (a burn-up view)
+    and where things stand right now. This is the curated data product, produced by
+    the summariser from the operational stream and stored as typed, columnar Parquet.
+    Like its source it is PII-free — aggregated across users, no titles, no emails.
+  owner: Data Team
+  contact:
+    name: Data Team
+    email: data@example.com
+
+servers:
+  aggregate:
+    type: s3
+    # Partitioned per day (dt=YYYY-MM-DD/); sealed days are written once, the
+    # open window is recomputed each run.
+    location: s3://todo-data/todo-performance/**/*.parquet
+    endpointUrl: https://f0884fe6c7811fc0e6edc6f6cdcd95bb.r2.cloudflarestorage.com
+    format: parquet
+
+models:
+  todo_performance:
+    description: Count of todo mutation events per event type per day.
+    type: table
+    fields:
+      date:
+        type: string
+        description: The day of the aggregation (YYYY-MM-DD).
+      event_type:
+        type: string
+        description: The event type being aggregated.
+        enum: [todo.created, todo.updated, todo.completed, todo.deleted]
+      count:
+        type: integer
+        description: The number of events of the type on the day.
+
+servicelevels:
+  frequency:
+    description: Recomputed on a regular cadence from the operational stream.
+    type: batch
+    cron: "0 * * * *"
