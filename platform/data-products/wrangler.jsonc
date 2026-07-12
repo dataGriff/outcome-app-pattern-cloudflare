@@ -9,6 +9,9 @@
   "observability": { "enabled": true },
   // Custom domain on the domainapps.org zone — the hostname the Access app fronts.
   "routes": [{ "pattern": "todo-data.domainapps.org", "custom_domain": true }],
+  // Keep the *.workers.dev URL live alongside the custom domain (declaring
+  // routes otherwise disables it) — the CI verify job smokes workers.dev.
+  "workers_dev": true,
   "assets": { "directory": "viz" },
   // Days kept "open" (recomputed from raw each run) before a day is sealed and
   // its raw partition compacted + never re-read. See src/summariser.ts.
