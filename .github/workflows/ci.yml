@@ -142,19 +142,22 @@ jobs:
           done
           [ "$count" -gt 0 ]
           # The PII gate: the transported todo title must never land in the
-          # 10-year-retention analytical layer. And the origin dimensions: this
-          # job declared x-test, calls the API directly — so its rows must read
-          # is_test=true, channel=api. See docs/data-products.
+          # 10-year-retention analytical layer — asserted over EVERY row
+          # (bronze is immutable, so rows from older schema versions are always
+          # present). The exact-schema and origin asserts apply to this run's
+          # smoke rows only: this job declared x-test and calls the API
+          # directly, so its rows must read is_test=true, channel=api.
           python3 - <<'EOF'
           import json
           rows = json.load(open('/tmp/operational.json'))
           for r in rows:
               assert 'title' not in r, f'title leaked into the operational product: {r}'
-              assert set(r) == {'event_type', 'todo_id', 'user_id', 'timestamp', 'channel', 'is_test'}, r
-          smoke = [r for r in rows if r['is_test']]
+          smoke = [r for r in rows if r.get('is_test')]
           assert smoke, 'no smoke rows marked is_test — the X-Test header was lost'
-          assert all(r['channel'] == 'api' for r in smoke), smoke
-          print('rows are title-free; smoke rows marked test/api')
+          for r in smoke:
+              assert set(r) == {'event_type', 'todo_id', 'user_id', 'timestamp', 'channel', 'is_test'}, r
+              assert r['channel'] == 'api', r
+          print(f'{len(rows)} rows title-free; {len(smoke)} smoke rows marked test/api')
           EOF
           echo "::endgroup::"
 
