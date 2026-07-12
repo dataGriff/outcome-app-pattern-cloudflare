@@ -56,11 +56,13 @@ app.get("/products/todo-performance", async (c) => {
       rows.push({ ...r, count: Number(r.count) });
     }
   }
+  // Null-safe on channel: Parquet written before the channel/is_test schema
+  // evolution can carry nulls — a read surface must not 500 on old data.
   rows.sort(
     (a, b) =>
       a.date.localeCompare(b.date) ||
       a.event_type.localeCompare(b.event_type) ||
-      a.channel.localeCompare(b.channel) ||
+      (a.channel ?? "").localeCompare(b.channel ?? "") ||
       Number(a.is_test) - Number(b.is_test),
   );
   return c.json(rows);
