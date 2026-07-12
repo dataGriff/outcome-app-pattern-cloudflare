@@ -9,71 +9,119 @@ import type { Env } from "./env";
 
 const DOMAIN = "https://behaviour-service";
 
-type ToolContent = { content: { type: "text"; text: string }[] };
-/** A concrete, non-generic view of McpServer.tool for the one parametered tool.
+const ACCESS_HEADER = "cf-access-jwt-assertion";
+
+/** Per-session props: the caller's Access JWT, captured at the transport
+ * boundary and forwarded on every domain call so the todos the tools touch
+ * are the caller's own. */
+interface Props extends Record<string, unknown> {
+  accessToken?: string;
+}
+
+function extractToken(request: Request): string | undefined {
+  const assertion = request.headers.get(ACCESS_HEADER);
+  if (assertion) return assertion;
+  const auth = request.headers.get("authorization");
+  if (auth?.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
+  return undefined;
+}
+
+type ToolContent = { content: { type: "text"; text: string }[]; isError?: boolean };
+/** A concrete, non-generic view of McpServer.tool for the parametered tools.
  * The SDK's generic ShapeOutput inference recurses infinitely across the split
  * zod versions (TS2589); pinning the signature here stops instantiation without
- * changing runtime behaviour — the zod schema still validates the arguments. */
-type ParametricTool = (
+ * changing runtime behaviour — the zod schemas still validate the arguments. */
+type ParametricTool<Args> = (
   name: string,
   description: string,
   schema: Record<string, unknown>,
-  cb: (args: { limit?: number }) => Promise<ToolContent>,
+  cb: (args: Args) => Promise<ToolContent>,
 ) => void;
 
-/** The agent channel: the one behaviour API exposed as MCP tools, so an LLM
- * client drives the same domain the web and mobile channels do. A faithful port
- * of the source repo's FastMCP server — three tools over the identical
- * endpoints, including the 404 → detail mapping on latest_colour. */
-export class ColourAgent extends McpAgent<Env> {
-  server = new McpServer({ name: "colour-domain", version: "1.0.0" });
+/** The agent channel: the one todo API exposed as MCP tools, so an LLM client
+ * drives the same domain the web and mobile channels do — as the same user.
+ * Four tools over the identical endpoints, forwarding the caller's Access JWT
+ * on every call. */
+export class TodoAgent extends McpAgent<Env, unknown, Props> {
+  server = new McpServer({ name: "todo-domain", version: "1.0.0" });
 
   async init() {
     const api = this.env.DOMAIN_API;
+    // Read the token per call, not at init: the session outlives the
+    // initializing request and later calls may carry a refreshed JWT.
+    const headers = (): Record<string, string> => {
+      const token = this.props?.accessToken;
+      return {
+        "content-type": "application/json",
+        ...(token ? { [ACCESS_HEADER]: token } : {}),
+      };
+    };
 
-    this.server.tool(
-      "generate_colour",
-      "Generate a new colour event via the behaviour domain (POST /colours).",
-      {},
-      async () => {
-        const r = await api.fetch(`${DOMAIN}/colours`, { method: "POST" });
-        if (r.status === 429) {
-          const retry = r.headers.get("Retry-After") ?? "60";
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Rate limited: too many colour generations. Retry after ${retry} seconds.`,
-              },
-            ],
-            isError: true,
-          };
-        }
+    const rateLimited = (r: Response): ToolContent | null => {
+      if (r.status !== 429) return null;
+      const retry = r.headers.get("Retry-After") ?? "60";
+      return {
+        content: [{ type: "text", text: `Rate limited: too many todo writes. Retry after ${retry} seconds.` }],
+        isError: true,
+      };
+    };
+
+    (this.server.tool as unknown as ParametricTool<{ title: string }>)(
+      "add_todo",
+      "Add a todo for the calling user (POST /todos).",
+      { title: z.string().min(1).max(256) },
+      async ({ title }) => {
+        const r = await api.fetch(`${DOMAIN}/todos`, {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify({ title }),
+        });
+        return rateLimited(r) ?? { content: [{ type: "text", text: await r.text() }] };
+      },
+    );
+
+    (this.server.tool as unknown as ParametricTool<{ completed?: boolean; limit?: number }>)(
+      "list_todos",
+      "List the calling user's todos, most recent first (GET /todos). Optionally filter by completion state and cap the count.",
+      { completed: z.boolean().optional(), limit: z.number().optional() },
+      async ({ completed, limit }) => {
+        const params = new URLSearchParams();
+        if (completed !== undefined) params.set("completed", String(completed));
+        if (limit !== undefined) params.set("limit", String(limit));
+        const qs = params.size > 0 ? `?${params}` : "";
+        const r = await api.fetch(`${DOMAIN}/todos${qs}`, { headers: headers() });
         return { content: [{ type: "text", text: await r.text() }] };
       },
     );
 
-    this.server.tool(
-      "latest_colour",
-      "Return the most recently generated colour (GET /colours/latest).",
-      {},
-      async () => {
-        const r = await api.fetch(`${DOMAIN}/colours/latest`);
-        if (r.status === 404) {
-          return {
-            content: [{ type: "text", text: JSON.stringify({ detail: "no colours generated yet" }) }],
-          };
-        }
-        return { content: [{ type: "text", text: await r.text() }] };
+    (this.server.tool as unknown as ParametricTool<{ id: string }>)(
+      "complete_todo",
+      "Mark one of the calling user's todos as completed (PATCH /todos/{id}).",
+      { id: z.string() },
+      async ({ id }) => {
+        const r = await api.fetch(`${DOMAIN}/todos/${id}`, {
+          method: "PATCH",
+          headers: headers(),
+          body: JSON.stringify({ completed: true }),
+        });
+        return rateLimited(r) ?? { content: [{ type: "text", text: await r.text() }] };
       },
     );
 
-    (this.server.tool as unknown as ParametricTool)(
-      "colour_history",
-      "Return recent colour history, most recent first (GET /colours?limit=N).",
-      { limit: z.number().optional() },
-      async ({ limit }) => {
-        const r = await api.fetch(`${DOMAIN}/colours?limit=${limit ?? 10}`);
+    (this.server.tool as unknown as ParametricTool<{ id: string }>)(
+      "delete_todo",
+      "Delete one of the calling user's todos (DELETE /todos/{id}).",
+      { id: z.string() },
+      async ({ id }) => {
+        const r = await api.fetch(`${DOMAIN}/todos/${id}`, {
+          method: "DELETE",
+          headers: headers(),
+        });
+        const limited = rateLimited(r);
+        if (limited) return limited;
+        if (r.status === 204) {
+          return { content: [{ type: "text", text: JSON.stringify({ deleted: true, id }) }] };
+        }
         return { content: [{ type: "text", text: await r.text() }] };
       },
     );
@@ -98,14 +146,17 @@ export default {
       if (auth.status === "unauthorized") {
         return new Response("unauthorized", { status: 401 });
       }
+      // Hand the raw token to the agent session (McpAgent surfaces ctx.props
+      // as this.props) so every tool call acts as the caller, not the worker.
+      (ctx as ExecutionContext & { props: Props }).props = { accessToken: extractToken(request) };
     }
 
     if (url.pathname === "/sse" || url.pathname === "/sse/message") {
-      return ColourAgent.serveSSE("/sse").fetch(request, env, ctx);
+      return TodoAgent.serveSSE("/sse").fetch(request, env, ctx);
     }
     if (url.pathname === "/mcp") {
-      return ColourAgent.serve("/mcp").fetch(request, env, ctx);
+      return TodoAgent.serve("/mcp").fetch(request, env, ctx);
     }
-    return new Response("colour-agent — MCP on /mcp (streamable-http) and /sse", { status: 404 });
+    return new Response("todo-agent — MCP on /mcp (streamable-http) and /sse", { status: 404 });
   },
 } satisfies ExportedHandler<Env>;

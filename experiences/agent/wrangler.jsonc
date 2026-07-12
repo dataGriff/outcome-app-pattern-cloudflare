@@ -1,8 +1,8 @@
 {
-  // The agent experience: the one behaviour API as MCP tools. Reaches the
+  // The agent experience: the one todo API as MCP tools. Reaches the
   // domain over a service binding (DOMAIN_API); McpAgent sessions live in a
   // SQLite-backed Durable Object (free-plan requirement).
-  "name": "colour-agent",
+  "name": "todo-agent",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -10,12 +10,12 @@
   "observability": { "enabled": true },
   // Custom domain on the domainapps.org zone — the hostname the Access app fronts
   // (Access as the OAuth provider for /mcp).
-  "routes": [{ "pattern": "colour-agent.domainapps.org", "custom_domain": true }],
+  "routes": [{ "pattern": "todo-agent.domainapps.org", "custom_domain": true }],
   "services": [{ "binding": "DOMAIN_API", "service": "todo-behaviour-service" }],
   "durable_objects": {
-    "bindings": [{ "name": "MCP_OBJECT", "class_name": "ColourAgent" }]
+    "bindings": [{ "name": "MCP_OBJECT", "class_name": "TodoAgent" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ColourAgent"] }],
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TodoAgent"] }],
   // Cloudflare Access identity for the MCP endpoint. Front /mcp with an Access
   // app (Access as the OAuth provider for MCP clients), then set both to gate
   // it here. Inert until set. See docs/security.
