@@ -110,9 +110,9 @@ tasks:
   bootstrap:cloud:
     desc: One-time creation of the Cloudflare resources (D1, Queue, R2) — paste the D1 id into domain/api/wrangler.jsonc
     cmds:
-      - npx wrangler d1 create colour
-      - npx wrangler queues create colour-events
-      - npx wrangler r2 bucket create colour-data
+      - npx wrangler d1 create todo
+      - npx wrangler queues create todo-events
+      - npx wrangler r2 bucket create todo-data
 
   lint:openapi:
     desc: Validate the OpenAPI contract (source of truth for the HTTP API)

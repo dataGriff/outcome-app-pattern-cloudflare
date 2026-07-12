@@ -7,18 +7,20 @@ Keep it thin: durable rules live here, everything else routes through
 ## What this repo is
 
 The [outcome-app-pattern](https://github.com/dataGriff/outcome-app-pattern) reference — a
-**source-aligned, API-first, multichannel domain** — ported to run entirely on **Cloudflare's
-free plan**, in TypeScript. Same pattern, same colour domain, same contracts; only the
-platform changes. `domain/` owns the behaviour Worker + contracts + events; `experiences/`
-(web, mobile, agent) consume the one API; `platform/` runs the queue consumer, summariser, and
-visualisation. This repo is also the first dry run of the source repo's replication guide. See
+**source-aligned, API-first, multichannel domain** — rebuilt to run entirely on **Cloudflare's
+free plan**, in TypeScript, as a **per-user todo-list domain**. Same pattern, same zones, same
+roles; the platform *and* the domain change — demonstrating the pattern generalising across
+both axes. `domain/` owns the todo Worker + contracts + events; `experiences/` (web, mobile,
+agent) consume the one API as the authenticated caller; `platform/` runs the queue consumer,
+summariser, and visualisation over PII-free data products. This repo is also the first dry run
+of the source repo's replication guide. See
 [`docs/architecture/`](docs/architecture/index.md).
 
 ## Working agreement
 
-- **Contract-first.** The contracts in `domain/contracts/` are copied from the source repo with
-  only infrastructure edits (server URLs, storage locations). Keep the implementation conformant
-  to them. See [`docs/contracts/`](docs/contracts/index.md).
+- **Contract-first.** The contracts in `domain/contracts/` are authored and owned here (the
+  todo domain diverges from the source repo's colour domain by design). Keep the implementation
+  conformant to them. See [`docs/contracts/`](docs/contracts/index.md).
 - **Test-driven.** The hermetic suite plus the post-deploy `datacontract test` are the drift
   gates — keep them green. See [`docs/testing/`](docs/testing/index.md).
 - **One `task ci` / `task deploy`.** Agents, developers, and CI run the *same* Taskfile targets

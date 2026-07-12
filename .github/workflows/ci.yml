@@ -71,23 +71,41 @@ jobs:
       - uses: arduino/setup-task@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      # Access is unprovisioned in the demo (ACCESS_AUD unset), so these calls
+      # act as the fixed dev fallback identity — exercising the same per-user
+      # paths production takes. Once Access is enforced this job needs an
+      # Access service token; see docs/productionising.
       - name: Smoke the deployed channels
         run: |
           set -euo pipefail
-          DOMAIN="https://colour-behaviour-service.${SUBDOMAIN}.workers.dev"
-          PRODUCTS="https://colour-data-products.${SUBDOMAIN}.workers.dev"
+          DOMAIN="https://todo-behaviour-service.${SUBDOMAIN}.workers.dev"
+          PRODUCTS="https://todo-data-products.${SUBDOMAIN}.workers.dev"
+          JSON="content-type: application/json"
 
-          echo "::group::generate three colours"
-          for n in 1 2 3; do curl -fsS -X POST "$DOMAIN/colours" | tee -a /tmp/gen.txt; echo; done
+          echo "::group::create three todos (201s, contract shape)"
+          for n in 1 2 3; do
+            { curl -fsS -X POST "$DOMAIN/todos" -H "$JSON" -d "{\"title\":\"smoke $n\"}"; echo; } | tee -a /tmp/gen.txt
+          done
+          python3 - <<'EOF'
+          import json
+          rows = [json.loads(l) for l in open('/tmp/gen.txt')]
+          assert len(rows) == 3
+          for r in rows:
+              assert r['completed'] is False and r['completed_at'] is None, r
+          EOF
           echo "::endgroup::"
 
-          echo "::group::latest reflects a generated colour"
-          curl -fsS "$DOMAIN/colours/latest" | grep -qE '"colour":"(red|amber|green)"'
+          echo "::group::list reflects the created todos; PATCH completes one"
+          curl -fsS "$DOMAIN/todos" > /tmp/list.json
+          TODO_ID=$(python3 -c "import json;d=json.load(open('/tmp/list.json'));assert len(d)>=3;print(d[0]['id'])")
+          curl -fsS -X PATCH "$DOMAIN/todos/$TODO_ID" -H "$JSON" -d '{"completed":true}' \
+            | python3 -c "import sys,json;d=json.load(sys.stdin);assert d['completed'] and d['completed_at'],d;print('completed_at',d['completed_at'])"
           echo "::endgroup::"
 
           echo "::group::SSE bridge is live (bounded read within the relay alarm window)"
           # Dump the response headers to a file (not stdout) so the grep can find
-          # them; the body streams until -m bounds it, which is expected.
+          # them; the body streams until -m bounds it, which is expected. The
+          # stream is the dev user's — the same identity the writes above used.
           curl -fsS -N -m 8 "$DOMAIN/events/stream" -D /tmp/sse-headers.txt -o /dev/null || true
           grep -qi 'content-type: text/event-stream' /tmp/sse-headers.txt
           echo "::endgroup::"
@@ -102,8 +120,8 @@ jobs:
           curl -fsS -N -m 10 "$DOMAIN/events/stream" -o /tmp/sse-body.txt &
           sse_pid=$!
           sleep 2
-          curl -fsS -X POST "$DOMAIN/colours" >/dev/null &
-          ( sleep 0.03; curl -fsS -X POST "$DOMAIN/colours" >/dev/null ) &
+          curl -fsS -X POST "$DOMAIN/todos" -H "$JSON" -d '{"title":"race a"}' >/dev/null &
+          ( sleep 0.03; curl -fsS -X POST "$DOMAIN/todos" -H "$JSON" -d '{"title":"race b"}' >/dev/null ) &
           wait %2 %3
           sleep 4
           kill "$sse_pid" 2>/dev/null || true
@@ -113,19 +131,30 @@ jobs:
           echo "no duplicate frames"
           echo "::endgroup::"
 
-          echo "::group::operational product received the events over the queue"
+          echo "::group::operational product received the events over the queue — and is title-free"
           for i in $(seq 1 30); do
-            count=$(curl -fsS "$PRODUCTS/products/colour-operational" | python3 -c "import sys,json;print(len(json.load(sys.stdin)))")
+            curl -fsS "$PRODUCTS/products/todo-operational" > /tmp/operational.json
+            count=$(python3 -c "import json;print(len(json.load(open('/tmp/operational.json'))))")
             echo "t=${i}s operational rows=$count"
             [ "$count" -gt 0 ] && break
             sleep 2
           done
           [ "$count" -gt 0 ]
+          # The PII gate: the transported todo title must never land in the
+          # 10-year-retention analytical layer. See docs/data-products.
+          python3 - <<'EOF'
+          import json
+          rows = json.load(open('/tmp/operational.json'))
+          for r in rows:
+              assert 'title' not in r, f'title leaked into the operational product: {r}'
+              assert set(r) == {'event_type', 'todo_id', 'user_id', 'timestamp'}, r
+          print('rows are title-free')
+          EOF
           echo "::endgroup::"
 
           echo "::group::summariser writes the performance product (Parquet)"
           curl -fsS -X POST "$PRODUCTS/run/summarise" | grep -qE '"rows":[1-9]'
-          curl -fsS "$PRODUCTS/products/colour-performance" | python3 -c "import sys,json;d=json.load(sys.stdin);assert d,'empty';print('performance rows',len(d))"
+          curl -fsS "$PRODUCTS/products/todo-performance" | python3 -c "import sys,json;d=json.load(sys.stdin);assert d,'empty';print('performance rows',len(d))"
           echo "::endgroup::"
       # The real contract test: datacontract-cli reads both products straight
       # from R2 over its S3 API (endpoint is in each contract) and checks schema
