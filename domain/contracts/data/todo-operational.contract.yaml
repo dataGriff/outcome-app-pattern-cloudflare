@@ -1,14 +1,16 @@
 dataContractSpecification: 1.2.0
-id: urn:outcome-app-pattern:data-product:colour-operational
+id: urn:outcome-app-pattern:data-product:todo-operational
 info:
-  title: Colour — Operational Awareness
+  title: Todo — Operational Awareness
   version: 1.0.0
   description: >
-    Purpose: operational awareness of colour generation — see and react to what is
+    Purpose: operational awareness of todo activity — see and react to what is
     happening now, event by event. Because this is the durable, per-event record, it
     also serves long-term granular detail: audit, deep-dive, and reprocessing. This is
     the raw data product, landed as append-only JSONL with the transport envelope
-    stripped.
+    stripped. Deliberately content-free: the todo title (user content) and any email
+    are stripped by the consumer before landing — user_id is the opaque Cloudflare
+    Access `sub` claim, so no PII enters this long-retention layer.
   owner: Data Team
   contact:
     name: Data Team
@@ -19,32 +21,39 @@ servers:
     type: s3
     # Hive-style date partitions (dt=YYYY-MM-DD/); one JSONL file per ingest
     # batch, compacted to one file per day once the day is sealed.
-    location: s3://colour-data/colour-operational/**/*.jsonl
+    location: s3://todo-data/todo-operational/**/*.jsonl
     endpointUrl: https://f0884fe6c7811fc0e6edc6f6cdcd95bb.r2.cloudflarestorage.com
     format: json
     delimiter: new_line
 
 models:
-  colour_operational:
-    description: One record per generated colour.
+  todo_operational:
+    description: One record per todo mutation event.
     type: table
     fields:
-      colour:
+      event_type:
         type: string
-        description: The generated colour.
-        enum: [red, amber, green]
+        description: Which mutation produced the event.
+        enum: [todo.created, todo.updated, todo.completed, todo.deleted]
+      todo_id:
+        type: string
+        description: The todo the event is about.
+      user_id:
+        type: string
+        description: The owning user — the opaque Cloudflare Access `sub` claim (never an email).
       timestamp:
         type: string
         format: date-time
-        description: The time the colour was generated.
+        description: The time of the mutation.
 
 servicelevels:
   freshness:
     description: The stream is available within 1 hour of the event.
     threshold: 1h
-    timestampField: colour_operational.timestamp
+    timestampField: todo_operational.timestamp
   retention:
     description: >
       The durable system of record — the immutable, per-event raw log is retained
       long-term (never deleted by the app) for audit, deep-dive and reprocessing.
+      The PII bar above (no titles, no emails) is what makes this retention safe.
     period: P10Y

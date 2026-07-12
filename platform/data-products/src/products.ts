@@ -33,7 +33,7 @@ app.use("*", async (c, next) => {
   await next();
 });
 
-app.get("/products/colour-operational", async (c) => {
+app.get("/products/todo-operational", async (c) => {
   // Bounded to the recent partitions — the operational awareness view, not the
   // whole system-of-record archive.
   const rows = await readRecentOperational(c.env);
@@ -41,7 +41,7 @@ app.get("/products/colour-operational", async (c) => {
   return c.json(rows);
 });
 
-app.get("/products/colour-performance", async (c) => {
+app.get("/products/todo-performance", async (c) => {
   // The curated product is partitioned per day; concatenate the per-day Parquets.
   const rows: PerformanceRow[] = [];
   for (const key of await listPerformanceKeys(c.env)) {
@@ -56,7 +56,7 @@ app.get("/products/colour-performance", async (c) => {
       rows.push({ ...r, count: Number(r.count) });
     }
   }
-  rows.sort((a, b) => a.date.localeCompare(b.date) || a.colour.localeCompare(b.colour));
+  rows.sort((a, b) => a.date.localeCompare(b.date) || a.event_type.localeCompare(b.event_type));
   return c.json(rows);
 });
 

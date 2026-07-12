@@ -131,12 +131,12 @@ tasks:
   lint:datacontract:
     desc: Lint the data-product contracts (requires datacontract CLI)
     sources:
-      - domain/contracts/data/colour-operational.contract.yaml
-      - domain/contracts/data/colour-performance.contract.yaml
+      - domain/contracts/data/todo-operational.contract.yaml
+      - domain/contracts/data/todo-performance.contract.yaml
     cmds:
       - python3 -m pip install 'datacontract-cli'
-      - datacontract lint domain/contracts/data/colour-operational.contract.yaml
-      - datacontract lint domain/contracts/data/colour-performance.contract.yaml
+      - datacontract lint domain/contracts/data/todo-operational.contract.yaml
+      - datacontract lint domain/contracts/data/todo-performance.contract.yaml
 
   lint:all:
     desc: Lint the OpenAPI, AsyncAPI and data contracts
@@ -146,8 +146,8 @@ tasks:
     desc: "Real datacontract test against the deployed R2 (post-deploy). Needs DATACONTRACT_S3_* env for a read-only R2 S3 key."
     cmds:
       - python3 -m pip install --quiet 'datacontract-cli[s3]' 'ibis-framework[duckdb]' duckdb
-      - datacontract test domain/contracts/data/colour-operational.contract.yaml
-      - datacontract test domain/contracts/data/colour-performance.contract.yaml
+      - datacontract test domain/contracts/data/todo-operational.contract.yaml
+      - datacontract test domain/contracts/data/todo-performance.contract.yaml
 
   gen:types:
     desc: Generate server handler types and the mobile client from the committed OpenAPI contract (one spec, two consumers)

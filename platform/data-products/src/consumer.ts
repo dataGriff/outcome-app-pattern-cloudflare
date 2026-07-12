@@ -1,10 +1,14 @@
-/** The streaming role: land colour.generated events as the colour-operational
- * data product (append-only JSONL, transport envelope stripped) — the same
- * mapping the source repo's bento pipeline applied.
+/** The streaming role: land todo events as the todo-operational data product
+ * (append-only JSONL, transport envelope stripped) — the same mapping the
+ * source repo's bento pipeline applied.
+ *
+ * The landed record is built by explicit field picks, so the todo title (user
+ * content, transport-only) can never leak into the 10-year-retention product —
+ * the PII bar the data contract declares.
  */
-import type { ColourGeneratedEvent, Env } from "./env";
+import type { Env, TodoEvent } from "./env";
 
-export const OPERATIONAL_PREFIX = "colour-operational/";
+export const OPERATIONAL_PREFIX = "todo-operational/";
 
 /** The bronze partition prefix for a given event day (Hive-style dt=YYYY-MM-DD). */
 export function partitionPrefix(day: string): string {
@@ -12,7 +16,7 @@ export function partitionPrefix(day: string): string {
 }
 
 export async function consume(
-  batch: MessageBatch<ColourGeneratedEvent>,
+  batch: MessageBatch<TodoEvent>,
   env: Env,
   _ctx?: ExecutionContext,
 ): Promise<void> {
@@ -21,10 +25,10 @@ export async function consume(
   // straddling batch simply splits into two files).
   const linesByDay = new Map<string, string[]>();
   for (const m of batch.messages) {
-    const { colour, timestamp } = m.body.data;
+    const { todo_id, user_id, timestamp } = m.body.data;
     const day = timestamp.slice(0, 10);
     const lines = linesByDay.get(day) ?? linesByDay.set(day, []).get(day)!;
-    lines.push(JSON.stringify({ colour, timestamp }));
+    lines.push(JSON.stringify({ event_type: m.body.type, todo_id, user_id, timestamp }));
   }
   for (const [day, lines] of linesByDay) {
     const key = `${partitionPrefix(day)}${Date.now()}-${crypto.randomUUID().slice(0, 8)}.jsonl`;

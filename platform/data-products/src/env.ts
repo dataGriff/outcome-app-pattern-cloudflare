@@ -8,12 +8,20 @@ export interface Env {
   ACCESS_AUD?: string;
 }
 
-/** The CloudEvent shape published by the domain's outbox relay. */
-export interface ColourGeneratedEvent {
+/** The CloudEvent shape published by the domain's outbox relay. `data.title`
+ * is transport-only user content — the consumer strips it (and never lands
+ * emails) before the long-retention analytical layer. */
+export interface TodoEvent {
   id: string;
   source: string;
   specversion: "1.0";
   type: string;
   time: string;
-  data: { colour: string; timestamp: string };
+  data: {
+    todo_id: string;
+    user_id: string;
+    title: string;
+    completed: boolean;
+    timestamp: string;
+  };
 }

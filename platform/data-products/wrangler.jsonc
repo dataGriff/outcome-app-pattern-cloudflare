@@ -2,13 +2,13 @@
   // The platform zone's data-products worker: the streaming role (queue
   // consumer → raw JSONL product), the summariser (cron → curated Parquet
   // product), the products read surface, and the visualisation page.
-  "name": "colour-data-products",
+  "name": "todo-data-products",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
   "dev": { "port": 8788 },
   "observability": { "enabled": true },
   // Custom domain on the domainapps.org zone — the hostname the Access app fronts.
-  "routes": [{ "pattern": "colour-data.domainapps.org", "custom_domain": true }],
+  "routes": [{ "pattern": "todo-data.domainapps.org", "custom_domain": true }],
   "assets": { "directory": "viz" },
   // Days kept "open" (recomputed from raw each run) before a day is sealed and
   // its raw partition compacted + never re-read. See src/summariser.ts.
@@ -21,14 +21,14 @@
     "ACCESS_AUD": ""
   },
   "r2_buckets": [
-    { "binding": "OBJECT_STORAGE", "bucket_name": "colour-data" }
+    { "binding": "OBJECT_STORAGE", "bucket_name": "todo-data" }
   ],
   "queues": {
     "consumers": [
-      { "queue": "colour-events", "max_batch_size": 25, "max_batch_timeout": 5 }
+      { "queue": "todo-events", "max_batch_size": 25, "max_batch_timeout": 5 }
     ]
   },
-  // Matches the cadence declared in colour-performance.contract.yaml
+  // Matches the cadence declared in todo-performance.contract.yaml
   // (servicelevels.frequency.cron). 1 of the free plan's 5 account crons.
   "triggers": { "crons": ["0 * * * *"] }
 }
