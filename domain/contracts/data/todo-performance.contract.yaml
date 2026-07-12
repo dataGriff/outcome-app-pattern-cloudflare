@@ -25,7 +25,7 @@ servers:
 
 models:
   todo_performance:
-    description: Count of todo mutation events per event type per day.
+    description: Count of todo mutation events per event type, channel and traffic kind per day.
     type: table
     fields:
       date:
@@ -35,9 +35,16 @@ models:
         type: string
         description: The event type being aggregated.
         enum: [todo.created, todo.updated, todo.completed, todo.deleted]
+      channel:
+        type: string
+        description: The experience the events came from.
+        enum: [web, mobile, agent, api]
+      is_test:
+        type: boolean
+        description: Whether the events were declared test traffic — consumers chart real usage with is_test = false.
       count:
         type: integer
-        description: The number of events of the type on the day.
+        description: The number of events for the (type, channel, is_test) combination on the day.
 
 servicelevels:
   frequency:

@@ -77,6 +77,8 @@ components:
               - title
               - completed
               - timestamp
+              - channel
+              - is_test
             properties:
               todo_id:
                 type: string
@@ -94,3 +96,12 @@ components:
                 type: string
                 format: date-time
                 description: Mutation time
+              channel:
+                type: string
+                enum: [web, mobile, agent, api]
+                description: >-
+                  The experience the mutation came from, self-declared via the
+                  X-Channel request header; unrecognised or absent records as "api"
+              is_test:
+                type: boolean
+                description: Whether the caller declared this test traffic (X-Test header)

@@ -45,6 +45,13 @@ models:
         type: string
         format: date-time
         description: The time of the mutation.
+      channel:
+        type: string
+        description: The experience the mutation came from (self-declared; unrecognised callers record as api).
+        enum: [web, mobile, agent, api]
+      is_test:
+        type: boolean
+        description: Whether the caller declared this test traffic (e.g. the CI smoke) — real traffic is false.
 
 servicelevels:
   freshness:

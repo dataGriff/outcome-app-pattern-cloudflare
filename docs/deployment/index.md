@@ -19,11 +19,12 @@ CI on push to `main`.
 ## CI flow
 
 On push to `main`: `test` (the hermetic `task ci`) → `deploy` (`task deploy`) → `verify`. The
-**verify** job smoke-tests the deployed stack end to end as the dev fallback identity — create
-×3, list, PATCH to completed, the per-user SSE feed (with the duplicate-broadcast race check),
-cross-process queue delivery to the operational product **with the no-`title` PII assertion**,
-and the Parquet summariser — and runs the real `datacontract test` against both products over
-R2's S3 API. See [testing](../testing/index.md). Once Access is enforced the smoke needs a
+**verify** job smoke-tests the deployed stack end to end as the dev fallback identity, with
+`X-Test: true` on every write so smoke rows land marked as test traffic — create ×3, list,
+PATCH to completed, the per-user SSE feed (with the duplicate-broadcast race check),
+cross-process queue delivery to the operational product **with the no-`title` PII assertion
+and the `is_test`/`channel` origin assertion**, and the Parquet summariser — and runs the real
+`datacontract test` against both products over R2's S3 API. See [testing](../testing/index.md). Once Access is enforced the smoke needs a
 service token — see [productionising](../productionising/index.md).
 
 ## Live channels

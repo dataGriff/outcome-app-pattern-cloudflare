@@ -16,9 +16,11 @@ const client = createClient<paths>({ baseUrl: API });
 
 // Attach the Access identity token (when signed in) as a bearer on every call,
 // so the domain can authenticate this native caller. Inert until sign-in
-// (locally the API acts as the fixed dev identity instead).
+// (locally the API acts as the fixed dev identity instead). Also self-declare
+// the channel so mutations are attributed to mobile in the data products.
 client.use({
   onRequest({ request }) {
+    request.headers.set('X-Channel', 'mobile');
     const token = getAccessToken();
     if (token) request.headers.set('Authorization', `Bearer ${token}`);
     return request;

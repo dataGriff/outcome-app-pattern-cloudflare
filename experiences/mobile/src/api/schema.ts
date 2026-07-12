@@ -106,7 +106,12 @@ export interface components {
         };
     };
     responses: never;
-    parameters: never;
+    parameters: {
+        /** @description Which experience performed this mutation — recorded on the emitted event (and in the data products) for analytics. Recognised values: web, mobile, agent. Unrecognised or absent records as "api"; never rejected. Deliberately a free string, not an enum: this is a recorded dimension, not a validated input. */
+        channelHeader: string;
+        /** @description Set to "true" to mark this mutation as test traffic on the emitted event and in the data products (the CI smoke sets it). Anything else records as real. */
+        testHeader: string;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -154,7 +159,12 @@ export interface operations {
     createTodo: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Which experience performed this mutation — recorded on the emitted event (and in the data products) for analytics. Recognised values: web, mobile, agent. Unrecognised or absent records as "api"; never rejected. Deliberately a free string, not an enum: this is a recorded dimension, not a validated input. */
+                "X-Channel"?: components["parameters"]["channelHeader"];
+                /** @description Set to "true" to mark this mutation as test traffic on the emitted event and in the data products (the CI smoke sets it). Anything else records as real. */
+                "X-Test"?: components["parameters"]["testHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -235,7 +245,12 @@ export interface operations {
     deleteTodo: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Which experience performed this mutation — recorded on the emitted event (and in the data products) for analytics. Recognised values: web, mobile, agent. Unrecognised or absent records as "api"; never rejected. Deliberately a free string, not an enum: this is a recorded dimension, not a validated input. */
+                "X-Channel"?: components["parameters"]["channelHeader"];
+                /** @description Set to "true" to mark this mutation as test traffic on the emitted event and in the data products (the CI smoke sets it). Anything else records as real. */
+                "X-Test"?: components["parameters"]["testHeader"];
+            };
             path: {
                 id: string;
             };
@@ -276,7 +291,12 @@ export interface operations {
     updateTodo: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Which experience performed this mutation — recorded on the emitted event (and in the data products) for analytics. Recognised values: web, mobile, agent. Unrecognised or absent records as "api"; never rejected. Deliberately a free string, not an enum: this is a recorded dimension, not a validated input. */
+                "X-Channel"?: components["parameters"]["channelHeader"];
+                /** @description Set to "true" to mark this mutation as test traffic on the emitted event and in the data products (the CI smoke sets it). Anything else records as real. */
+                "X-Test"?: components["parameters"]["testHeader"];
+            };
             path: {
                 id: string;
             };

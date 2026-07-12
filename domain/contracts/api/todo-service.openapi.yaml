@@ -35,6 +35,9 @@ paths:
         native / direct callers). First-party channels forward the caller's
         token over their service binding. The `accessJwt` / `bearerAuth`
         schemes below document the credential; the 401 documents the failure.
+      parameters:
+        - $ref: "#/components/parameters/channelHeader"
+        - $ref: "#/components/parameters/testHeader"
       requestBody:
         required: true
         content:
@@ -114,6 +117,9 @@ paths:
         Partial update. Completing emits todo.completed; renaming or
         un-completing emits todo.updated. `completed_at` is set when a todo
         transitions to completed and cleared when it is un-completed.
+      parameters:
+        - $ref: "#/components/parameters/channelHeader"
+        - $ref: "#/components/parameters/testHeader"
       requestBody:
         required: true
         content:
@@ -138,6 +144,9 @@ paths:
     delete:
       operationId: deleteTodo
       summary: Delete a todo
+      parameters:
+        - $ref: "#/components/parameters/channelHeader"
+        - $ref: "#/components/parameters/testHeader"
       responses:
         "204":
           description: Deleted (emits todo.deleted).
@@ -167,6 +176,29 @@ paths:
         "401":
           description: Missing or invalid Access token (only when Access is provisioned).
 components:
+  parameters:
+    channelHeader:
+      name: X-Channel
+      in: header
+      required: false
+      description: >-
+        Which experience performed this mutation — recorded on the emitted
+        event (and in the data products) for analytics. Recognised values:
+        web, mobile, agent. Unrecognised or absent records as "api"; never
+        rejected. Deliberately a free string, not an enum: this is a recorded
+        dimension, not a validated input.
+      schema:
+        type: string
+    testHeader:
+      name: X-Test
+      in: header
+      required: false
+      description: >-
+        Set to "true" to mark this mutation as test traffic on the emitted
+        event and in the data products (the CI smoke sets it). Anything else
+        records as real.
+      schema:
+        type: string
   securitySchemes:
     accessJwt:
       type: apiKey

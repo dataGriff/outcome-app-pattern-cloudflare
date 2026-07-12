@@ -4,11 +4,17 @@ The raw operational product is the durable **system of record** — kept forever
 re-scanned wholesale. Both products live in the one `todo-data` R2 bucket.
 
 Both are **deliberately PII-free**: the queue consumer lands
-`{event_type, todo_id, user_id, timestamp}` by explicit field picks, so the transported todo
-title (user content) structurally cannot reach this 10-year-retention layer, and `user_id` is
-the opaque Cloudflare Access `sub` claim — never an email. The curated product aggregates
-across users to `{date, event_type, count}` (the created-vs-completed burn-up). The hermetic
-suite and the CI verify job both assert the no-title bar.
+`{event_type, todo_id, user_id, timestamp, channel, is_test}` by explicit field picks, so the
+transported todo title (user content) structurally cannot reach this 10-year-retention layer,
+and `user_id` is the opaque Cloudflare Access `sub` claim — never an email. The hermetic suite
+and the CI verify job both assert the no-title bar.
+
+Both products carry the **origin dimensions**: `channel` records which experience performed
+the mutation (`web` / `mobile` / `agent`, self-declared via the `X-Channel` header; anything
+else lands as `api`) and `is_test` separates declared test traffic (the CI smoke sets
+`X-Test: true`) from real usage. The curated product aggregates across users to
+`{date, event_type, channel, is_test, count}` — the created-vs-completed burn-up, sliceable by
+where todos are generated, with test volume kept out of real trends.
 
 ## Storage layout
 

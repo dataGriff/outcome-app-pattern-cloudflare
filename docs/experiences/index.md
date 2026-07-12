@@ -11,6 +11,12 @@ provisioned — the web channel's edge login, the mobile app's OIDC flow, and th
 MCP clients. While Access is unprovisioned every request acts as the fixed dev identity, so the
 demo works tokenless. See [security](../security/index.md).
 
+Each channel **self-identifies** on every mutation via the `X-Channel` header (the web proxy
+and agent set it server-side; the mobile client sets it in its fetch middleware), so every
+emitted event — and both data products — record where the todo activity came from. Direct
+callers record as `api`; `X-Test: true` marks traffic as test. See
+[data products](../data-products/index.md).
+
 ## Web (`experiences/web`)
 
 The `todo-web` Worker serves static assets and **proxies same-origin** through its own Worker

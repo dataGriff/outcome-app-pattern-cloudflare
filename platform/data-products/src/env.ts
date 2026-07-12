@@ -23,5 +23,7 @@ export interface TodoEvent {
     title: string;
     completed: boolean;
     timestamp: string;
+    channel: string;
+    is_test: boolean;
   };
 }

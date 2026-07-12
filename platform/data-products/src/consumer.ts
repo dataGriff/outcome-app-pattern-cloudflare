@@ -25,10 +25,10 @@ export async function consume(
   // straddling batch simply splits into two files).
   const linesByDay = new Map<string, string[]>();
   for (const m of batch.messages) {
-    const { todo_id, user_id, timestamp } = m.body.data;
+    const { todo_id, user_id, timestamp, channel, is_test } = m.body.data;
     const day = timestamp.slice(0, 10);
     const lines = linesByDay.get(day) ?? linesByDay.set(day, []).get(day)!;
-    lines.push(JSON.stringify({ event_type: m.body.type, todo_id, user_id, timestamp }));
+    lines.push(JSON.stringify({ event_type: m.body.type, todo_id, user_id, timestamp, channel, is_test }));
   }
   for (const [day, lines] of linesByDay) {
     const key = `${partitionPrefix(day)}${Date.now()}-${crypto.randomUUID().slice(0, 8)}.jsonl`;

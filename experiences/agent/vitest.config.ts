@@ -4,8 +4,9 @@ import { defineConfig } from "vitest/config";
 // A stand-in todo API so the agent's tools can be exercised without the real
 // domain worker. User-aware: it refuses calls without a forwarded Access JWT
 // header (proving the agent forwards it) and keys an in-memory store by that
-// token, mirroring the real per-user scoping. Module-scoped, mutated only by
-// the one test.
+// token, mirroring the real per-user scoping. It also refuses calls that don't
+// self-identify as the agent channel (proving the X-Channel declaration).
+// Module-scoped, mutated only by the one test.
 interface Todo {
   id: string;
   title: string;
@@ -27,6 +28,9 @@ export default defineConfig({
           async DOMAIN_API(request) {
             const token = request.headers.get("cf-access-jwt-assertion");
             if (!token) return json({ detail: "unauthorized" }, 401);
+            if (request.headers.get("x-channel") !== "agent") {
+              return json({ detail: "expected x-channel: agent" }, 400);
+            }
             let todos = stores.get(token);
             if (!todos) {
               todos = [];
