@@ -1,4 +1,4 @@
-import { verifyAccessJwt } from "@colour/access-jwt";
+import { verifyAccessJwt } from "@todo/access-jwt";
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 // MCP SDK 1.29's tool() types are built against zod v3; `agents` pulls zod v4,

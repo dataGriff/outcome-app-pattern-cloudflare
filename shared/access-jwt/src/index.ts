@@ -34,6 +34,12 @@ export type AuthResult =
   | { status: "ok"; identity: AccessIdentity }
   | { status: "unauthorized"; reason: string };
 
+/** The fixed identity every request acts as while Access is disabled
+ * (ACCESS_AUD unset) — local dev and the hermetic suite run as this user.
+ * Defined here so every enforcement point agrees on the one dev user; the
+ * verifier itself never returns it (policy belongs at the enforcement point). */
+export const DEV_IDENTITY: AccessIdentity = { sub: "dev", email: "dev@localhost" };
+
 /** The header Access injects at the edge for browser flows; first-party channels
  * forward the same header over their service binding, and native/direct callers
  * send the token as a bearer. */

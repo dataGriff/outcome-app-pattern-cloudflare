@@ -1,6 +1,6 @@
 import { SignJWT, generateKeyPair, type JWTVerifyGetKey } from "jose";
 import { describe, expect, it } from "vitest";
-import { verifyAccessJwt, type AccessConfig } from "./index";
+import { DEV_IDENTITY, verifyAccessJwt, type AccessConfig } from "./index";
 
 const TEAM = "https://colour.cloudflareaccess.com";
 const AUD = "test-aud-tag";
@@ -64,5 +64,11 @@ describe("verifyAccessJwt", () => {
     const token = await sign({ email: "dog@domainapps.org" }, { iss: "https://evil.cloudflareaccess.com" });
     const r = await verifyAccessJwt(req({ "cf-access-jwt-assertion": token }), CONFIG, localKey);
     expect(r.status).toBe("unauthorized");
+  });
+});
+
+describe("DEV_IDENTITY", () => {
+  it("is the fixed dev-mode identity", () => {
+    expect(DEV_IDENTITY).toEqual({ sub: "dev", email: "dev@localhost" });
   });
 });
