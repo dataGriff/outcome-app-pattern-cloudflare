@@ -7,21 +7,28 @@
     <style>
       body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;margin:2rem;max-width:40rem}
       button{font-size:1rem;padding:.5rem 1rem}
-      .pill{display:inline-block;padding:.5rem 1rem;border-radius:999px;background:#eee;margin-left:1rem}
+      form{display:flex;gap:.5rem;margin:1rem 0}
+      input[type=text]{flex:1;font-size:1rem;padding:.5rem .75rem;border:1px solid #ccc;border-radius:.4rem}
       ul{list-style:none;padding:0}
-      li{padding:.4rem .6rem;border-radius:.4rem;margin:.25rem 0;background:#f4f4f4;font-variant-numeric:tabular-nums}
-      .dot{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;margin-right:.5rem;vertical-align:middle}
+      li{display:flex;align-items:center;gap:.6rem;padding:.5rem .6rem;border-radius:.4rem;margin:.25rem 0;background:#f4f4f4}
+      li span.title{flex:1}
+      li.done span.title{text-decoration:line-through;color:#888}
+      li button{font-size:.85rem;padding:.2rem .5rem;background:none;border:none;color:#e5484d;cursor:pointer}
       .muted{color:#888}
+      .notice{color:#b54708;background:#fff7e0;border-radius:.4rem;padding:.4rem .8rem;margin:.5rem 0;display:none}
     </style>
   </head>
   <body>
     <h1>Web experience</h1>
-    <p>The <strong>web</strong> channel consumes the one behaviour API. Generating a
-      colour calls <code>POST /colours</code>; the live feed subscribes to the same
-      <code>colour.generated</code> events over SSE — the mobile and agent experiences use these same endpoints.</p>
+    <p>The <strong>web</strong> channel consumes the one todo API. Your todos are
+      yours alone — every call is scoped to your identity, and the live feed is a
+      per-user SSE stream of your own <code>todo.*</code> events. The mobile and
+      agent experiences use these same endpoints.</p>
 
-    <button id="gen">Generate colour</button>
-    <span id="result" class="pill">—</span>
+    <form id="add-form">
+      <input id="title" type="text" placeholder="What needs doing?" maxlength="256" autocomplete="off">
+      <button id="add" type="submit">Add</button>
+    </form>
 
     <!-- Cloudflare Turnstile: keeps casual bots off this public UI. The sitekey
          below is Cloudflare's always-pass TEST key — replace it with your real
@@ -30,69 +37,152 @@
     <div class="cf-turnstile" data-sitekey="1x00000000000000000000AA"></div>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
-    <h2>Live events <span id="conn" class="muted">(connecting…)</span></h2>
-    <ul id="feed"></ul>
+    <div id="notice" class="notice"></div>
+
+    <h2>Your todos <span id="conn" class="muted">(connecting…)</span></h2>
+    <ul id="list"></ul>
 
     <script>
-      const colours = { red: '#e5484d', amber: '#ffb224', green: '#30a46c' };
-      const btn = document.getElementById('gen');
-      const res = document.getElementById('result');
-      const feed = document.getElementById('feed');
+      const form = document.getElementById('add-form');
+      const titleInput = document.getElementById('title');
+      const addBtn = document.getElementById('add');
+      const list = document.getElementById('list');
       const conn = document.getElementById('conn');
+      const noticeEl = document.getElementById('notice');
 
-      // POST goes through the same-origin proxy (avoids CORS on writes).
-      // Guard against double-clicks: a second click while a POST is in flight
-      // would generate a second, distinct colour event. One click, one event.
+      let todos = [];
+
+      function notice(text) {
+        noticeEl.textContent = text || '';
+        noticeEl.style.display = text ? 'block' : 'none';
+      }
+
+      function render() {
+        list.replaceChildren(...todos.map((t) => {
+          const li = document.createElement('li');
+          if (t.completed) li.className = 'done';
+          const check = document.createElement('input');
+          check.type = 'checkbox';
+          check.checked = t.completed;
+          check.addEventListener('change', () => toggle(t));
+          const span = document.createElement('span');
+          span.className = 'title';
+          span.textContent = t.title;
+          const del = document.createElement('button');
+          del.textContent = '✕';
+          del.title = 'Delete';
+          del.addEventListener('click', () => remove(t));
+          li.append(check, span, del);
+          return li;
+        }));
+      }
+
+      function upsert(todo) {
+        const i = todos.findIndex((t) => t.id === todo.id);
+        if (i === -1) todos.unshift(todo); else todos[i] = todo;
+        render();
+      }
+
+      function drop(id) {
+        todos = todos.filter((t) => t.id !== id);
+        render();
+      }
+
+      function rateLimited(r) {
+        if (r.status !== 429) return false;
+        const retry = r.headers.get('Retry-After') || '60';
+        notice(`Rate limited — try again in ${retry}s`);
+        return true;
+      }
+
+      // All calls go through the same-origin proxy (no CORS); the edge-injected
+      // Access JWT rides the cookie-authenticated request automatically.
+      fetch('/api/todos')
+        .then((r) => r.json())
+        .then((data) => { todos = data; render(); })
+        .catch(() => notice('Could not load todos'));
+
+      // Guard against double-submits: one submit, one todo.
       let pending = false;
-      btn.addEventListener('click', async () => {
-        if (pending) return;
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const title = titleInput.value.trim();
+        if (pending || !title) return;
         pending = true;
-        btn.disabled = true;
-        res.textContent = '⏳ generating...';
+        addBtn.disabled = true;
         try {
           // Turnstile token (empty when the widget hasn't loaded / isn't configured);
           // the worker only enforces it when TURNSTILE_SECRET is set.
           const token = window.turnstile ? window.turnstile.getResponse() : '';
-          const r = await fetch('/api/colours', {
+          const r = await fetch('/api/todos', {
             method: 'POST',
-            headers: token ? { 'cf-turnstile-response': token } : {},
+            headers: {
+              'content-type': 'application/json',
+              ...(token ? { 'cf-turnstile-response': token } : {}),
+            },
+            body: JSON.stringify({ title }),
           });
           window.turnstile && window.turnstile.reset(); // tokens are single-use
-          if (r.status === 403) {
-            res.textContent = '🛑 bot check failed — please retry';
-            return;
-          }
-          if (r.status === 429) {
-            const retry = r.headers.get('Retry-After') || '60';
-            res.textContent = `⏳ rate limited — try again in ${retry}s`;
-            return;
-          }
+          if (r.status === 403) { notice('Bot check failed — please retry'); return; }
+          if (rateLimited(r)) return;
           if (!r.ok) throw new Error('network');
-          const j = await r.json();
-          res.textContent = j.colour + ' @ ' + (j.timestamp || '');
+          upsert(await r.json());
+          titleInput.value = '';
+          notice('');
         } catch (e) {
-          res.textContent = 'error';
+          notice('Error adding todo — please try again');
         } finally {
           pending = false;
-          btn.disabled = false;
+          addBtn.disabled = false;
         }
       });
 
-      // Live feed also subscribes same-origin; the worker proxies the API's SSE
-      // bridge, so the browser never touches CORS. (Mobile still shows direct CORS.)
+      async function toggle(todo) {
+        try {
+          const r = await fetch(`/api/todos/${todo.id}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ completed: !todo.completed }),
+          });
+          if (rateLimited(r)) { render(); return; }
+          if (!r.ok) throw new Error('network');
+          upsert(await r.json());
+        } catch (e) {
+          notice('Error updating todo — please try again');
+          render();
+        }
+      }
+
+      async function remove(todo) {
+        try {
+          const r = await fetch(`/api/todos/${todo.id}`, { method: 'DELETE' });
+          if (rateLimited(r)) return;
+          if (r.status === 204 || r.status === 404) drop(todo.id);
+        } catch (e) {
+          notice('Error deleting todo — please try again');
+        }
+      }
+
+      // The live feed subscribes same-origin; the worker proxies the API's
+      // per-user SSE bridge (forwarding the Access JWT), so the browser never
+      // touches CORS and only ever sees its own events. Frames are {type, data}
+      // snapshots — applying them is an upsert/remove keyed by id, idempotent
+      // against the optimistic local updates above (e.g. from another tab or
+      // the mobile app mutating the same account).
       const es = new EventSource('/api/events/stream');
       es.onopen = () => { conn.textContent = '(live)'; };
       es.onerror = () => { conn.textContent = '(reconnecting…)'; };
       es.onmessage = (m) => {
-        const ev = JSON.parse(m.data);
-        const li = document.createElement('li');
-        const dot = document.createElement('span');
-        dot.className = 'dot';
-        dot.style.background = colours[ev.colour] || '#888';
-        li.appendChild(dot);
-        li.appendChild(document.createTextNode(ev.colour + '  ' + ev.timestamp));
-        feed.prepend(li);
-        while (feed.children.length > 10) feed.removeChild(feed.lastChild);
+        const { type, data } = JSON.parse(m.data);
+        if (type === 'todo.deleted') { drop(data.todo_id); return; }
+        const existing = todos.find((t) => t.id === data.todo_id);
+        upsert({
+          id: data.todo_id,
+          title: data.title,
+          completed: data.completed,
+          created_at: existing ? existing.created_at : data.timestamp,
+          completed_at: data.completed ? (existing && existing.completed_at) || data.timestamp : null,
+        });
       };
     </script>
   </body>

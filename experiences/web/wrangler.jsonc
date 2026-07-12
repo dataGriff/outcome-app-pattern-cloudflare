@@ -1,15 +1,15 @@
 {
-  // The web experience: static assets + a same-origin proxy to the one
-  // behaviour API. Both the POST write and the SSE feed go through the proxy so
+  // The web experience: static assets + a same-origin proxy to the one todo
+  // API. All CRUD calls and the per-user SSE feed go through the proxy so
   // the browser never needs CORS — the domain API is reached via a service
   // binding (DOMAIN_API), the role name; the honest target is below.
-  "name": "colour-web",
+  "name": "todo-web",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
   "dev": { "port": 8789 },
   "observability": { "enabled": true },
   // Custom domain on the domainapps.org zone — the hostname the Access app fronts.
-  "routes": [{ "pattern": "colour-web.domainapps.org", "custom_domain": true }],
+  "routes": [{ "pattern": "todo-web.domainapps.org", "custom_domain": true }],
   "assets": {
     "directory": "./public",
     "run_worker_first": ["/api/*"]
