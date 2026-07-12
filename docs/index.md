@@ -12,6 +12,7 @@ The canonical topic index for this repo — for humans and agents alike. Entry f
 | [Testing](testing/index.md) | The hermetic suite and the post-deploy `datacontract test` against R2. |
 | [Data products](data-products/index.md) | The R2 storage model — bronze/silver, day-sealing, and the incremental summariser watermark. |
 | [Experiences](experiences/index.md) | The web, mobile, and agent channels — and how to interact with the deployed MCP agent. |
+| [Security](security/index.md) | Authentication — Cloudflare Access + the shared JWT verifier across all four Workers and the mobile app. |
 | [Deployment](deployment/index.md) | One-time cloud setup, GitHub secrets/vars, and the CI deploy + verify flow. |
 | [Productionising](productionising/index.md) | Pointer to the source repo's production-readiness checklist. |
 | [Replication](replication/index.md) | This port *is* the replication dry-run — pointer to the source repo's lift-out guide. |

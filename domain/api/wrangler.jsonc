@@ -7,6 +7,10 @@
   "compatibility_date": "2026-06-01",
   "dev": { "port": 8787 },
   "observability": { "enabled": true },
+  // Custom domain on the domainapps.org zone. Auto-creates the DNS record + TLS
+  // cert on deploy (requires the zone to be active). The *.workers.dev URL stays
+  // live too; the in-Worker Access check (src/auth.ts) covers both hostnames.
+  "routes": [{ "pattern": "colour-api.domainapps.org", "custom_domain": true }],
   "rules": [{ "type": "Text", "globs": ["**/*.yaml"], "fallthrough": true }],
   "d1_databases": [
     {
@@ -33,7 +37,12 @@
     // deployed API enforces it; local dev + the Schemathesis run override it to
     // "off" (--var), and vitest sets "off" too, so the hermetic gates aren't
     // throttled. See src/ratelimit.ts and docs/deployment.
-    "RATE_LIMIT": "on"
+    "RATE_LIMIT": "on",
+    // Cloudflare Access caller auth on POST /colours. Inert until provisioned
+    // (like Turnstile): set both to your team domain and this API's Access AUD
+    // tag to enforce. Neither is secret. See src/auth.ts and docs/security.
+    "ACCESS_TEAM_DOMAIN": "https://hungovercoders.cloudflareaccess.com",
+    "ACCESS_AUD": ""
   },
   // Native Workers Rate Limiting (free, in-memory per-colo). Two limiters guard
   // POST /colours: per-client-IP stops a single flooder; the global cap is the

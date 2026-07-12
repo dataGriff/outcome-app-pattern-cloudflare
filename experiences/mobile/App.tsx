@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, Pressable, FlatList } from 'react-native';
 import createClient from 'openapi-fetch';
 import type { paths, components } from './src/api/schema';
+import { accessEnabled, getAccessToken, useAccessAuth } from './src/auth';
 
 type ColourEvent = components['schemas']['ColourEvent'];
 type FeedItem = ColourEvent & { key: string };
@@ -18,12 +19,23 @@ const DOTS: Record<ColourEvent['colour'], string> = {
 // the experience cannot call an endpoint or read a field the contract doesn't define.
 const client = createClient<paths>({ baseUrl: API });
 
+// Attach the Access identity token (when signed in) as a bearer on every call,
+// so the domain can authenticate this native caller. Inert until sign-in.
+client.use({
+  onRequest({ request }) {
+    const token = getAccessToken();
+    if (token) request.headers.set('Authorization', `Bearer ${token}`);
+    return request;
+  },
+});
+
 export default function App() {
   const [latest, setLatest] = useState<ColourEvent | null>(null);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [conn, setConn] = useState('connecting…');
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const auth = useAccessAuth();
 
   useEffect(() => {
     client
@@ -77,6 +89,16 @@ export default function App() {
         generate, SSE for the live feed.
       </Text>
 
+      {accessEnabled && (
+        <Pressable
+          style={[styles.btn, styles.signIn]}
+          onPress={auth.signIn}
+          disabled={!auth.ready}
+        >
+          <Text style={styles.btnText}>Sign in with Access</Text>
+        </Pressable>
+      )}
+
       <Pressable style={styles.btn} onPress={generate} disabled={pending}>
         <Text style={styles.btnText}>Generate colour</Text>
       </Pressable>
@@ -116,6 +138,7 @@ const styles = StyleSheet.create({
   h2: { fontSize: 18, fontWeight: '600', marginTop: 24, marginBottom: 8 },
   p: { color: '#444', marginBottom: 20 },
   btn: { backgroundColor: '#111', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8, alignSelf: 'flex-start' },
+  signIn: { backgroundColor: '#1f6feb', marginBottom: 12 },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   notice: { marginTop: 12, color: '#b54708', backgroundColor: '#fff7e0', borderRadius: 6, paddingVertical: 8, paddingHorizontal: 12 },
   latestRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16 },

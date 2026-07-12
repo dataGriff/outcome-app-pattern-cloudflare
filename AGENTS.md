@@ -48,4 +48,5 @@ When something changes, update the matching topic so the docs stay true:
 | A test or conformance gate | [`docs/testing/`](docs/testing/index.md) |
 | The R2 storage layout / summariser / watermark | [`docs/data-products/`](docs/data-products/index.md) |
 | A channel (web / mobile / agent) or the deployed agent's endpoints | [`docs/experiences/`](docs/experiences/index.md) |
+| Authentication (Cloudflare Access, the shared JWT verifier, an enforcement point) | [`docs/security/`](docs/security/index.md) |
 | The deploy flow, cloud setup, or CI secrets/vars | [`docs/deployment/`](docs/deployment/index.md) |

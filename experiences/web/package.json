@@ -2,6 +2,9 @@
   "name": "@outcome-app/web",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "@colour/access-jwt": "*"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260708.1",
     "wrangler": "^4.108.0"

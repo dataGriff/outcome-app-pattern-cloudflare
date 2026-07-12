@@ -5,6 +5,10 @@ Three channels, zero shared code, all consuming the one behaviour API: **web**, 
 (`POST /colours`, `GET /colours/latest`, `GET /colours?limit=N`, and the SSE feed at
 `GET /events/stream`).
 
+Each channel also demonstrates a different **authentication** style once Cloudflare Access is
+provisioned — the web channel's edge login, the mobile app's OIDC flow, and the agent's OAuth for
+MCP clients — all inert in the open demo. See [security](../security/index.md).
+
 ## Web (`experiences/web`)
 
 The `colour-web` Worker serves static assets and **proxies same-origin** through its own Worker

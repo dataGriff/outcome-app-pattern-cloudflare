@@ -1,3 +1,4 @@
+import { verifyAccessJwt } from "@colour/access-jwt";
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 // MCP SDK 1.29's tool() types are built against zod v3; `agents` pulls zod v4,
@@ -80,8 +81,25 @@ export class ColourAgent extends McpAgent<Env> {
 }
 
 export default {
-  fetch(request, env, ctx): Response | Promise<Response> {
+  async fetch(request, env, ctx): Promise<Response> {
     const url = new URL(request.url);
+    const isTransport =
+      url.pathname === "/sse" || url.pathname === "/sse/message" || url.pathname === "/mcp";
+
+    // Gate the MCP transports behind Access. When /mcp is fronted by Access
+    // acting as the OAuth provider, MCP clients (Claude, Inspector, the AI
+    // Playground) complete the browser auth flow and present the resulting JWT;
+    // we validate it here. Inert until ACCESS_AUD is set. See docs/security.
+    if (isTransport) {
+      const auth = await verifyAccessJwt(request, {
+        teamDomain: env.ACCESS_TEAM_DOMAIN,
+        aud: env.ACCESS_AUD,
+      });
+      if (auth.status === "unauthorized") {
+        return new Response("unauthorized", { status: 401 });
+      }
+    }
+
     if (url.pathname === "/sse" || url.pathname === "/sse/message") {
       return ColourAgent.serveSSE("/sse").fetch(request, env, ctx);
     }

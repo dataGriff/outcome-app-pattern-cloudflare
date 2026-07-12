@@ -19,7 +19,20 @@ paths:
     post:
       operationId: createColour
       summary: Generate a colour
-      description: Generate a colour, persist it, and enqueue a colour.generated event.
+      description: |
+        Generate a colour, persist it, and enqueue a colour.generated event.
+
+        When Cloudflare Access is provisioned, the write requires a valid Access
+        identity JWT (`Cf-Access-Jwt-Assertion`, or a bearer token for native /
+        direct callers). First-party channels forward the caller's token over
+        their service binding. Auth is config-gated: unset in the demo, the
+        endpoint is open. Reads and the SSE feed are unauthenticated.
+
+        Not marked as an unconditional `security` requirement because enforcement
+        is conditional: config-gated (off until Access is provisioned) and
+        transport-dependent (first-party service-binding callers are trusted
+        without a token). The `accessJwt` / `bearerAuth` schemes below document
+        the credential a direct caller presents; the 401 documents the failure.
       responses:
         "200":
           description: The generated colour.
@@ -27,6 +40,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ColourEvent"
+        "401":
+          description: Missing or invalid Access token (only when Access is provisioned).
         "429":
           description: Rate limited — too many colour generations. Retry after the Retry-After interval.
     get:
@@ -81,6 +96,22 @@ paths:
               schema:
                 type: string
 components:
+  securitySchemes:
+    accessJwt:
+      type: apiKey
+      in: header
+      name: Cf-Access-Jwt-Assertion
+      description: |
+        Cloudflare Access identity JWT. Injected by Access at the edge for
+        browser flows and forwarded by first-party channels over their service
+        binding. Validated in-Worker against the team's public JWKS.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        The same Access JWT presented as a bearer token — used by native (mobile)
+        and direct API callers that can't rely on the edge-injected header.
   schemas:
     ColourEvent:
       type: object

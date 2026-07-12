@@ -3,6 +3,7 @@
  * Operational/analytical split, demonstrated: these reads come from object
  * storage, never from the domain's operational store.
  */
+import { verifyAccessJwt } from "@colour/access-jwt";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { parquetReadObjects } from "hyparquet";
@@ -16,6 +17,21 @@ import {
 
 export const app = new Hono<{ Bindings: Env }>();
 app.use("*", cors());
+
+// Gate the read surface behind Cloudflare Access when provisioned. The Worker
+// validates the injected/forwarded JWT in-process (defence in depth); inert
+// while ACCESS_AUD is unset, so the demo and hermetic tests stay open. Guards
+// the visualisation page, /products/*, and the /run/summarise trigger.
+app.use("*", async (c, next) => {
+  const auth = await verifyAccessJwt(c.req.raw, {
+    teamDomain: c.env.ACCESS_TEAM_DOMAIN,
+    aud: c.env.ACCESS_AUD,
+  });
+  if (auth.status === "unauthorized") {
+    return c.json({ detail: "unauthorized" }, 401);
+  }
+  await next();
+});
 
 app.get("/products/colour-operational", async (c) => {
   // Bounded to the recent partitions — the operational awareness view, not the

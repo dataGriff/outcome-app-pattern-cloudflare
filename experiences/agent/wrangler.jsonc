@@ -8,9 +8,19 @@
   "compatibility_flags": ["nodejs_compat"],
   "dev": { "port": 8790 },
   "observability": { "enabled": true },
+  // Custom domain on the domainapps.org zone — the hostname the Access app fronts
+  // (Access as the OAuth provider for /mcp).
+  "routes": [{ "pattern": "colour-agent.domainapps.org", "custom_domain": true }],
   "services": [{ "binding": "DOMAIN_API", "service": "colour-behaviour-service" }],
   "durable_objects": {
     "bindings": [{ "name": "MCP_OBJECT", "class_name": "ColourAgent" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ColourAgent"] }]
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ColourAgent"] }],
+  // Cloudflare Access identity for the MCP endpoint. Front /mcp with an Access
+  // app (Access as the OAuth provider for MCP clients), then set both to gate
+  // it here. Inert until set. See docs/security.
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "https://hungovercoders.cloudflareaccess.com",
+    "ACCESS_AUD": ""
+  }
 }
