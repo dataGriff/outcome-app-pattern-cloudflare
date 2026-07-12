@@ -1,4 +1,4 @@
-import { type AccessIdentity, verifyAccessJwt } from "@colour/access-jwt";
+import { type AccessIdentity, verifyAccessJwt } from "@todo/access-jwt";
 import type { Context, Next } from "hono";
 import type { Env } from "./env";
 

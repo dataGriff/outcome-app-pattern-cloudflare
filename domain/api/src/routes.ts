@@ -1,4 +1,4 @@
-import type { AccessIdentity } from "@colour/access-jwt";
+import type { AccessIdentity } from "@todo/access-jwt";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { parse } from "yaml";

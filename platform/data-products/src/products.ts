@@ -3,7 +3,7 @@
  * Operational/analytical split, demonstrated: these reads come from object
  * storage, never from the domain's operational store.
  */
-import { verifyAccessJwt } from "@colour/access-jwt";
+import { verifyAccessJwt } from "@todo/access-jwt";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { parquetReadObjects } from "hyparquet";

@@ -1,4 +1,4 @@
-import { verifyAccessJwt } from "@colour/access-jwt";
+import { verifyAccessJwt } from "@todo/access-jwt";
 import type { Env } from "./env";
 
 const TURNSTILE_VERIFY = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
