@@ -81,10 +81,11 @@ jobs:
           DOMAIN="https://todo-behaviour-service.${SUBDOMAIN}.workers.dev"
           PRODUCTS="https://todo-data-products.${SUBDOMAIN}.workers.dev"
           JSON="content-type: application/json"
+          TEST_HDR="x-test: true"
 
           echo "::group::create three todos (201s, contract shape)"
           for n in 1 2 3; do
-            { curl -fsS -X POST "$DOMAIN/todos" -H "$JSON" -d "{\"title\":\"smoke $n\"}"; echo; } | tee -a /tmp/gen.txt
+            { curl -fsS -X POST "$DOMAIN/todos" -H "$JSON" -H "$TEST_HDR" -d "{\"title\":\"smoke $n\"}"; echo; } | tee -a /tmp/gen.txt
           done
           python3 - <<'EOF'
           import json
@@ -98,7 +99,7 @@ jobs:
           echo "::group::list reflects the created todos; PATCH completes one"
           curl -fsS "$DOMAIN/todos" > /tmp/list.json
           TODO_ID=$(python3 -c "import json;d=json.load(open('/tmp/list.json'));assert len(d)>=3;print(d[0]['id'])")
-          curl -fsS -X PATCH "$DOMAIN/todos/$TODO_ID" -H "$JSON" -d '{"completed":true}' \
+          curl -fsS -X PATCH "$DOMAIN/todos/$TODO_ID" -H "$JSON" -H "$TEST_HDR" -d '{"completed":true}' \
             | python3 -c "import sys,json;d=json.load(sys.stdin);assert d['completed'] and d['completed_at'],d;print('completed_at',d['completed_at'])"
           echo "::endgroup::"
 
@@ -120,8 +121,8 @@ jobs:
           curl -fsS -N -m 10 "$DOMAIN/events/stream" -o /tmp/sse-body.txt &
           sse_pid=$!
           sleep 2
-          curl -fsS -X POST "$DOMAIN/todos" -H "$JSON" -d '{"title":"race a"}' >/dev/null &
-          ( sleep 0.03; curl -fsS -X POST "$DOMAIN/todos" -H "$JSON" -d '{"title":"race b"}' >/dev/null ) &
+          curl -fsS -X POST "$DOMAIN/todos" -H "$JSON" -H "$TEST_HDR" -d '{"title":"race a"}' >/dev/null &
+          ( sleep 0.03; curl -fsS -X POST "$DOMAIN/todos" -H "$JSON" -H "$TEST_HDR" -d '{"title":"race b"}' >/dev/null ) &
           wait %2 %3
           sleep 4
           kill "$sse_pid" 2>/dev/null || true
@@ -141,14 +142,19 @@ jobs:
           done
           [ "$count" -gt 0 ]
           # The PII gate: the transported todo title must never land in the
-          # 10-year-retention analytical layer. See docs/data-products.
+          # 10-year-retention analytical layer. And the origin dimensions: this
+          # job declared x-test, calls the API directly — so its rows must read
+          # is_test=true, channel=api. See docs/data-products.
           python3 - <<'EOF'
           import json
           rows = json.load(open('/tmp/operational.json'))
           for r in rows:
               assert 'title' not in r, f'title leaked into the operational product: {r}'
-              assert set(r) == {'event_type', 'todo_id', 'user_id', 'timestamp'}, r
-          print('rows are title-free')
+              assert set(r) == {'event_type', 'todo_id', 'user_id', 'timestamp', 'channel', 'is_test'}, r
+          smoke = [r for r in rows if r['is_test']]
+          assert smoke, 'no smoke rows marked is_test — the X-Test header was lost'
+          assert all(r['channel'] == 'api' for r in smoke), smoke
+          print('rows are title-free; smoke rows marked test/api')
           EOF
           echo "::endgroup::"
 

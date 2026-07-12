@@ -30,7 +30,11 @@ function contractModel(yaml: string, model: string): ContractModel {
 
 const today = new Date().toISOString().slice(0, 10);
 
-function event(type: string, timestamp: string, user = "dev"): TodoEvent {
+function event(
+  type: string,
+  timestamp: string,
+  origin: { channel?: string; is_test?: boolean } = {},
+): TodoEvent {
   return {
     id: crypto.randomUUID(),
     source: "urn:outcome-app-pattern:todo-service",
@@ -39,10 +43,12 @@ function event(type: string, timestamp: string, user = "dev"): TodoEvent {
     time: timestamp,
     data: {
       todo_id: crypto.randomUUID(),
-      user_id: user,
+      user_id: "dev",
       title: "SECRET user content — must never land",
       completed: type === "todo.completed",
       timestamp,
+      channel: origin.channel ?? "api",
+      is_test: origin.is_test ?? false,
     },
   };
 }
@@ -83,8 +89,8 @@ beforeEach(async () => {
 describe("todo-operational product", () => {
   it("the consumer lands JSONL records in a dt= partition, matching the contract, title stripped", async () => {
     await deliver([
-      event("todo.created", "2026-07-08T10:00:00.000Z"),
-      event("todo.completed", "2026-07-08T10:01:00.000Z"),
+      event("todo.created", "2026-07-08T10:00:00.000Z", { channel: "web" }),
+      event("todo.completed", "2026-07-08T10:01:00.000Z", { channel: "web" }),
     ]);
 
     const keys = await keysUnder("todo-operational/");
@@ -107,6 +113,8 @@ describe("todo-operational product", () => {
       expect(model.fields.event_type.enum).toContain(row.event_type);
       expect(row.user_id).toBe("dev");
       expect(Number.isNaN(Date.parse(row.timestamp as string))).toBe(false);
+      expect(row.channel).toBe("web");
+      expect(row.is_test).toBe(false);
     }
   });
 
@@ -121,14 +129,15 @@ describe("todo-operational product", () => {
 });
 
 describe("todo-performance product", () => {
-  it("the summariser writes a per-day Parquet aggregate matching the contract", async () => {
-    await deliver([event("todo.created", "2026-07-07T09:00:00.000Z")]);
-    await deliver([event("todo.created", "2026-07-07T10:00:00.000Z")]); // second fragment, same day
-    await deliver([event("todo.completed", "2026-07-08T09:00:00.000Z")]);
+  it("the summariser writes a per-day Parquet aggregate split by channel and traffic kind", async () => {
+    await deliver([event("todo.created", "2026-07-07T09:00:00.000Z", { channel: "web" })]);
+    await deliver([event("todo.created", "2026-07-07T10:00:00.000Z", { channel: "web" })]); // second fragment, same day
+    await deliver([event("todo.created", "2026-07-07T11:00:00.000Z", { channel: "agent" })]);
+    await deliver([event("todo.completed", "2026-07-08T09:00:00.000Z", { is_test: true })]);
 
     const run = await SELF.fetch("http://products/run/summarise", { method: "POST" });
     expect(run.status).toBe(200);
-    expect(((await run.json()) as { rows: number }).rows).toBe(2);
+    expect(((await run.json()) as { rows: number }).rows).toBe(3);
 
     // Per-day silver Parquet, one file per day.
     expect(await env.OBJECT_STORAGE.head("todo-performance/dt=2026-07-07/part.parquet")).not.toBeNull();
@@ -137,17 +146,28 @@ describe("todo-performance product", () => {
     const resp = await SELF.fetch("http://products/products/todo-performance");
     expect(resp.status).toBe(200);
     const rows = (await resp.json()) as Record<string, unknown>[];
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(3);
 
     const model = contractModel(env.PERFORMANCE_CONTRACT_YAML, "todo_performance");
     for (const row of rows) {
       expect(Object.keys(row).sort()).toEqual(Object.keys(model.fields).sort());
       expect(model.fields.event_type.enum).toContain(row.event_type);
+      expect(model.fields.channel.enum).toContain(row.channel);
       expect(row.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(Number.isInteger(row.count)).toBe(true);
     }
-    const created7 = rows.find((r) => r.date === "2026-07-07" && r.event_type === "todo.created");
-    expect(created7?.count).toBe(2);
+    // Same event type, different channels → separate rows.
+    const created7web = rows.find(
+      (r) => r.date === "2026-07-07" && r.event_type === "todo.created" && r.channel === "web",
+    );
+    expect(created7web?.count).toBe(2);
+    expect(created7web?.is_test).toBe(false); // boolean survives the Parquet round-trip
+    const created7agent = rows.find(
+      (r) => r.date === "2026-07-07" && r.event_type === "todo.created" && r.channel === "agent",
+    );
+    expect(created7agent?.count).toBe(1);
+    const completed8 = rows.find((r) => r.date === "2026-07-08");
+    expect(completed8?.is_test).toBe(true);
   });
 
   it("sealing a closed day compacts its raw fragments to one file and sets the watermark", async () => {

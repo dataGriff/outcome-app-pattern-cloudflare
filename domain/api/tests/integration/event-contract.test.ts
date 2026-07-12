@@ -13,7 +13,15 @@ import { parse } from "yaml";
 interface TodoEvent {
   type: string;
   source: string;
-  data: { todo_id: string; user_id: string; title: string; completed: boolean; timestamp: string };
+  data: {
+    todo_id: string;
+    user_id: string;
+    title: string;
+    completed: boolean;
+    timestamp: string;
+    channel: string;
+    is_test: boolean;
+  };
 }
 
 function eventSchema(): Record<string, unknown> {
@@ -35,10 +43,10 @@ async function latestOutboxEvent(): Promise<TodoEvent> {
   return event;
 }
 
-async function create(title: string): Promise<{ id: string }> {
+async function create(title: string, headers: Record<string, string> = {}): Promise<{ id: string }> {
   const resp = await SELF.fetch("http://api/todos", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify({ title }),
   });
   expect(resp.status).toBe(201);
@@ -63,6 +71,23 @@ describe("event contract", () => {
     expect(event.data.todo_id).toBe(todo.id);
     expect(event.data.user_id).toBe("dev");
     expect(event.data.completed).toBe(false);
+    // No origin headers → a direct, real caller.
+    expect(event.data.channel).toBe("api");
+    expect(event.data.is_test).toBe(false);
+  });
+
+  it("records the declared channel and test flag on the event", async () => {
+    await create("from the web, as a test", { "x-channel": "web", "x-test": "true" });
+    const event = await latestOutboxEvent();
+    expect(event.data.channel).toBe("web");
+    expect(event.data.is_test).toBe(true);
+  });
+
+  it("records an unrecognised channel as api (never rejects)", async () => {
+    await create("who are you", { "x-channel": "carrier-pigeon", "x-test": "banana" });
+    const event = await latestOutboxEvent();
+    expect(event.data.channel).toBe("api");
+    expect(event.data.is_test).toBe(false);
   });
 
   it("completing emits a conformant todo.completed", async () => {

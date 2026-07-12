@@ -11,11 +11,13 @@ const DOMAIN = "https://behaviour-service";
 
 const ACCESS_HEADER = "cf-access-jwt-assertion";
 
-/** Per-session props: the caller's Access JWT, captured at the transport
- * boundary and forwarded on every domain call so the todos the tools touch
- * are the caller's own. */
+/** Per-session props, captured at the transport boundary and forwarded on
+ * every domain call: the caller's Access JWT (so the todos the tools touch are
+ * the caller's own) and their X-Test declaration (so test traffic through the
+ * agent stays marked in the data products). */
 interface Props extends Record<string, unknown> {
   accessToken?: string;
+  isTest?: boolean;
 }
 
 function extractToken(request: Request): string | undefined {
@@ -53,7 +55,9 @@ export class TodoAgent extends McpAgent<Env, unknown, Props> {
       const token = this.props?.accessToken;
       return {
         "content-type": "application/json",
+        "x-channel": "agent",
         ...(token ? { [ACCESS_HEADER]: token } : {}),
+        ...(this.props?.isTest ? { "x-test": "true" } : {}),
       };
     };
 
@@ -146,9 +150,13 @@ export default {
       if (auth.status === "unauthorized") {
         return new Response("unauthorized", { status: 401 });
       }
-      // Hand the raw token to the agent session (McpAgent surfaces ctx.props
-      // as this.props) so every tool call acts as the caller, not the worker.
-      (ctx as ExecutionContext & { props: Props }).props = { accessToken: extractToken(request) };
+      // Hand the raw token and the test declaration to the agent session
+      // (McpAgent surfaces ctx.props as this.props) so every tool call acts as
+      // the caller, not the worker.
+      (ctx as ExecutionContext & { props: Props }).props = {
+        accessToken: extractToken(request),
+        isTest: request.headers.get("x-test") === "true",
+      };
     }
 
     if (url.pathname === "/sse" || url.pathname === "/sse/message") {

@@ -9,13 +9,17 @@ const ACCESS_HEADER = "cf-access-jwt-assertion";
  * the domain knows who is calling. Service-binding traffic bypasses the edge,
  * so the domain can only learn identity from this forwarded header — on every
  * call, including the SSE stream (the per-user feed is useless without it).
- * Content-Type rides along for the JSON write bodies. */
+ * Content-Type rides along for the JSON write bodies. The proxy owns the
+ * X-Channel declaration (a browser can't spoof it past here); an inbound
+ * X-Test flag passes through so web traffic can be marked as test too. */
 function forwardedHeaders(request: Request): HeadersInit {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { "x-channel": "web" };
   const token = request.headers.get(ACCESS_HEADER);
   if (token) headers[ACCESS_HEADER] = token;
   const contentType = request.headers.get("content-type");
   if (contentType) headers["content-type"] = contentType;
+  const test = request.headers.get("x-test");
+  if (test) headers["x-test"] = test;
   return headers;
 }
 

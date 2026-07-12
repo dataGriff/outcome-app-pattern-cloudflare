@@ -20,14 +20,20 @@
     "time": { "type": "string", "format": "date-time" },
     "data": {
       "type": "object",
-      "description": "Snapshot of the todo at mutation time. `title` is transport-only — the data-product consumer strips it before landing the analytical layer.",
-      "required": ["todo_id", "user_id", "title", "completed", "timestamp"],
+      "description": "Snapshot of the todo at mutation time. `title` is transport-only — the data-product consumer strips it before landing the analytical layer. `channel`/`is_test` are the analytics dimensions both data products keep.",
+      "required": ["todo_id", "user_id", "title", "completed", "timestamp", "channel", "is_test"],
       "properties": {
         "todo_id": { "type": "string" },
         "user_id": { "type": "string", "description": "The owning user — the Cloudflare Access `sub` claim." },
         "title": { "type": "string" },
         "completed": { "type": "boolean" },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "timestamp": { "type": "string", "format": "date-time" },
+        "channel": {
+          "type": "string",
+          "enum": ["web", "mobile", "agent", "api"],
+          "description": "The experience the mutation came from (X-Channel header; unrecognised/absent → \"api\")."
+        },
+        "is_test": { "type": "boolean", "description": "Whether the caller declared this test traffic (X-Test header)." }
       }
     }
   }

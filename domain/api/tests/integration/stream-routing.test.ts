@@ -61,12 +61,14 @@ describe("per-user stream routing", () => {
     const bobReader = await openStream("bob");
 
     const ts = new Date().toISOString();
+    const origin = { channel: "api", is_test: false } as const;
     const aliceCreated = buildTodoEvent("todo.created", {
       todo_id: crypto.randomUUID(),
       user_id: "alice",
       title: "alice's todo",
       completed: false,
       timestamp: ts,
+      ...origin,
     });
     const aliceCompleted = buildTodoEvent("todo.completed", {
       todo_id: aliceCreated.data.todo_id,
@@ -74,6 +76,7 @@ describe("per-user stream routing", () => {
       title: "alice's todo",
       completed: true,
       timestamp: ts,
+      ...origin,
     });
     const bobCreated = buildTodoEvent("todo.created", {
       todo_id: crypto.randomUUID(),
@@ -81,6 +84,7 @@ describe("per-user stream routing", () => {
       title: "bob's todo",
       completed: false,
       timestamp: ts,
+      ...origin,
     });
     await seedOutbox(aliceCreated);
     await seedOutbox(bobCreated);

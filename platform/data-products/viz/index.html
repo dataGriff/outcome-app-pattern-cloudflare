@@ -47,6 +47,7 @@
         <span id="recomputed" class="muted"></span></p>
       <div id="perf-content"></div>
       <canvas id="perf-chart"></canvas>
+      <canvas id="channel-chart"></canvas>
     </section>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
@@ -58,8 +59,9 @@
         'todo.deleted': '#e5484d',
       };
       const TYPES = Object.keys(TYPE_MAP);
+      const CHANNEL_COLOURS = ['#1f6feb', '#30a46c', '#ffb224', '#8e4ec6'];
       const short = (t) => t.replace('todo.', '');
-      let opChart = null, perfChart = null;
+      let opChart = null, perfChart = null, channelChart = null;
 
       function tab(active) {
         for (const name of ['operational', 'performance']) {
@@ -79,10 +81,12 @@
           return;
         }
         const latest = rows.slice(0, 10).map(r =>
-          `<tr><td>${short(r.event_type)}</td><td>${r.todo_id.slice(0, 8)}…</td><td>${r.timestamp}</td></tr>`).join('');
+          `<tr><td>${short(r.event_type)}</td><td>${r.channel}${r.is_test ? ' <em>(test)</em>' : ''}</td><td>${r.todo_id.slice(0, 8)}…</td><td>${r.timestamp}</td></tr>`).join('');
+        const testCount = rows.filter(r => r.is_test).length;
         content.innerHTML =
-          `<div class="metrics"><div class="metric"><div class="value">${rows.length}</div>Recent events</div></div>` +
-          `<strong>Latest activity</strong><table><tr><th>event</th><th>todo</th><th>timestamp</th></tr>${latest}</table>`;
+          `<div class="metrics"><div class="metric"><div class="value">${rows.length - testCount}</div>Recent events (real)</div>` +
+          `<div class="metric"><div class="value">${testCount}</div>Test events</div></div>` +
+          `<strong>Latest activity</strong><table><tr><th>event</th><th>channel</th><th>todo</th><th>timestamp</th></tr>${latest}</table>`;
         const counts = {};
         for (const r of rows) counts[r.event_type] = (counts[r.event_type] || 0) + 1;
         const labels = Object.keys(counts);
@@ -96,20 +100,24 @@
       }
 
       async function loadPerformance() {
-        const rows = await (await fetch('/products/todo-performance')).json();
+        const all = await (await fetch('/products/todo-performance')).json();
         const content = document.getElementById('perf-content');
-        if (!rows.length) {
+        if (!all.length) {
           content.innerHTML = '<p class="warn">No aggregate yet. The summariser writes todo-performance on its next run.</p>';
           if (perfChart) { perfChart.destroy(); perfChart = null; }
+          if (channelChart) { channelChart.destroy(); channelChart = null; }
           return;
         }
-        const latestDate = rows.map(r => r.date).sort().at(-1);
+        // Real usage drives the charts; test volume is shown, not mixed in.
+        const rows = all.filter(r => !r.is_test);
+        const testTotal = all.filter(r => r.is_test).reduce((s, r) => s + r.count, 0);
+        const latestDate = all.map(r => r.date).sort().at(-1);
         const today = rows.filter(r => r.date === latestDate);
         const metrics = TYPES.map(type => {
           const value = today.filter(r => r.event_type === type).reduce((s, r) => s + r.count, 0);
           return `<div class="metric"><div class="value">${value}</div>${short(type)}</div>`;
-        }).join('');
-        content.innerHTML = `<strong>Current status — ${latestDate}</strong><div class="metrics">${metrics}</div><strong>Created vs completed per day</strong>`;
+        }).join('') + `<div class="metric"><div class="value">${testTotal}</div>test (all days)</div>`;
+        content.innerHTML = `<strong>Current status — ${latestDate} (real traffic)</strong><div class="metrics">${metrics}</div><strong>Created vs completed per day</strong>`;
         const dates = [...new Set(rows.map(r => r.date))].sort();
         const datasets = TYPES.map(type => ({
           label: short(type),
@@ -119,6 +127,20 @@
         if (perfChart) perfChart.destroy();
         perfChart = new Chart(document.getElementById('perf-chart'), {
           type: 'bar', data: { labels: dates, datasets },
+        });
+        // Where todos are generated: created events per channel per day.
+        const created = rows.filter(r => r.event_type === 'todo.created');
+        const channels = [...new Set(created.map(r => r.channel))].sort();
+        const channelDatasets = channels.map((channel, i) => ({
+          label: channel,
+          data: dates.map(d => created.filter(r => r.date === d && r.channel === channel).reduce((s, r) => s + r.count, 0)),
+          backgroundColor: CHANNEL_COLOURS[i % CHANNEL_COLOURS.length],
+        }));
+        if (channelChart) channelChart.destroy();
+        channelChart = new Chart(document.getElementById('channel-chart'), {
+          type: 'bar',
+          data: { labels: dates, datasets: channelDatasets },
+          options: { scales: { x: { stacked: true }, y: { stacked: true } }, plugins: { title: { display: true, text: 'Todos created, by channel' } } },
         });
       }
 

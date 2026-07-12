@@ -10,7 +10,7 @@
  */
 import type { components } from "../types/api";
 import type { Env } from "./env";
-import { buildTodoEvent, type TodoEventType } from "./event";
+import { buildTodoEvent, type Origin, type TodoEventType } from "./event";
 
 export type Todo = components["schemas"]["Todo"];
 
@@ -33,13 +33,21 @@ function toTodo(row: TodoRow): Todo {
   };
 }
 
-function outboxInsert(env: Env, type: TodoEventType, row: TodoRow, ts: string): D1PreparedStatement {
+function outboxInsert(
+  env: Env,
+  type: TodoEventType,
+  row: TodoRow,
+  ts: string,
+  origin: Origin,
+): D1PreparedStatement {
   const event = buildTodoEvent(type, {
     todo_id: row.id,
     user_id: row.user_id,
     title: row.title,
     completed: row.completed === 1,
     timestamp: ts,
+    channel: origin.channel,
+    is_test: origin.is_test,
   });
   return env.OPERATIONAL_STORE
     .prepare("INSERT INTO outbox (id, subject, payload, created_at) VALUES (?, ?, ?, ?)")
@@ -51,7 +59,12 @@ function outboxInsert(env: Env, type: TodoEventType, row: TodoRow, ts: string): 
  * D1 batch statements cannot read each other's results, so the app clock
  * supplies the single timestamp that the operational row, the outbox row and
  * the event all share. */
-export async function createTodo(env: Env, userId: string, title: string): Promise<Todo> {
+export async function createTodo(
+  env: Env,
+  userId: string,
+  title: string,
+  origin: Origin,
+): Promise<Todo> {
   const ts = new Date().toISOString();
   const row: TodoRow = {
     id: crypto.randomUUID(),
@@ -65,7 +78,7 @@ export async function createTodo(env: Env, userId: string, title: string): Promi
     env.OPERATIONAL_STORE
       .prepare("INSERT INTO todos (id, user_id, title, completed, created_at) VALUES (?, ?, ?, 0, ?)")
       .bind(row.id, userId, title, ts),
-    outboxInsert(env, "todo.created", row, ts),
+    outboxInsert(env, "todo.created", row, ts, origin),
   ]);
   return toTodo(row);
 }
@@ -107,6 +120,7 @@ export async function updateTodo(
   userId: string,
   id: string,
   patch: { title?: string; completed?: boolean },
+  origin: Origin,
 ): Promise<Todo | null> {
   const existing = await env.OPERATIONAL_STORE
     .prepare(
@@ -130,14 +144,19 @@ export async function updateTodo(
     env.OPERATIONAL_STORE
       .prepare("UPDATE todos SET title = ?, completed = ?, completed_at = ? WHERE user_id = ? AND id = ?")
       .bind(row.title, row.completed, row.completed_at, userId, id),
-    outboxInsert(env, type, row, ts),
+    outboxInsert(env, type, row, ts, origin),
   ]);
   return toTodo(row);
 }
 
 /** Delete and enqueue todo.deleted (snapshot of the pre-delete state).
  * Returns false when the todo doesn't exist for this user. */
-export async function deleteTodo(env: Env, userId: string, id: string): Promise<boolean> {
+export async function deleteTodo(
+  env: Env,
+  userId: string,
+  id: string,
+  origin: Origin,
+): Promise<boolean> {
   const existing = await env.OPERATIONAL_STORE
     .prepare(
       "SELECT id, user_id, title, completed, created_at, completed_at FROM todos WHERE user_id = ? AND id = ?",
@@ -151,7 +170,7 @@ export async function deleteTodo(env: Env, userId: string, id: string): Promise<
     env.OPERATIONAL_STORE
       .prepare("DELETE FROM todos WHERE user_id = ? AND id = ?")
       .bind(userId, id),
-    outboxInsert(env, "todo.deleted", existing, ts),
+    outboxInsert(env, "todo.deleted", existing, ts, origin),
   ]);
   return true;
 }

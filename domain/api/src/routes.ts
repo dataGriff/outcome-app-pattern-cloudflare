@@ -7,6 +7,7 @@ import type { components } from "../types/api";
 import { requireAuth } from "./auth";
 import { createTodo, deleteTodo, getTodo, listTodos, updateTodo } from "./db";
 import type { Env } from "./env";
+import { CHANNELS, type Channel, type Origin } from "./event";
 import { rateLimit } from "./ratelimit";
 
 type NewTodo = components["schemas"]["NewTodo"];
@@ -73,6 +74,18 @@ async function parseBody(c: { req: { json(): Promise<unknown> } }): Promise<unkn
   }
 }
 
+/** Analytics dimensions for the mutation's event: which experience performed
+ * it (X-Channel, self-declared by the first-party channels; anything else is
+ * "api") and whether the caller flagged it as test traffic (X-Test). Recorded,
+ * never rejected — hygiene for the data products, not a security boundary. */
+function originOf(request: Request): Origin {
+  const declared = request.headers.get("x-channel");
+  const channel: Channel = (CHANNELS as readonly string[]).includes(declared ?? "")
+    ? (declared as Channel)
+    : "api";
+  return { channel, is_test: request.headers.get("x-test") === "true" };
+}
+
 // Auth on every route: per-user data means nothing is answerable without an
 // identity (the dev fallback supplies one while Access is unprovisioned).
 // Rate limiting guards the mutations — each drives an outbox row and,
@@ -81,7 +94,7 @@ app.post("/todos", requireAuth, rateLimit, async (c) => {
   const body = await parseBody(c);
   const invalid = body === undefined ? "body must be valid JSON" : invalidTodoBody(body, true);
   if (invalid !== null) return c.json({ detail: invalid }, 422);
-  const todo = await createTodo(c.env, c.get("identity").sub, (body as NewTodo).title);
+  const todo = await createTodo(c.env, c.get("identity").sub, (body as NewTodo).title, originOf(c.req.raw));
   // Poke the relay for immediate drain; its alarm is the at-least-once backstop.
   c.executionCtx.waitUntil(
     c.env.OUTBOX_RELAY.get(c.env.OUTBOX_RELAY.idFromName("relay")).poke(),
@@ -131,7 +144,7 @@ app.patch("/todos/:id", requireAuth, rateLimit, async (c) => {
   const body = await parseBody(c);
   const invalid = body === undefined ? "body must be valid JSON" : invalidTodoBody(body, false);
   if (invalid !== null) return c.json({ detail: invalid }, 422);
-  const todo = await updateTodo(c.env, c.get("identity").sub, c.req.param("id")!, body as TodoPatch);
+  const todo = await updateTodo(c.env, c.get("identity").sub, c.req.param("id")!, body as TodoPatch, originOf(c.req.raw));
   if (todo === null) return c.json({ detail: "not found" }, 404);
   c.executionCtx.waitUntil(
     c.env.OUTBOX_RELAY.get(c.env.OUTBOX_RELAY.idFromName("relay")).poke(),
@@ -140,7 +153,7 @@ app.patch("/todos/:id", requireAuth, rateLimit, async (c) => {
 });
 
 app.delete("/todos/:id", requireAuth, rateLimit, async (c) => {
-  const deleted = await deleteTodo(c.env, c.get("identity").sub, c.req.param("id")!);
+  const deleted = await deleteTodo(c.env, c.get("identity").sub, c.req.param("id")!, originOf(c.req.raw));
   if (!deleted) return c.json({ detail: "not found" }, 404);
   c.executionCtx.waitUntil(
     c.env.OUTBOX_RELAY.get(c.env.OUTBOX_RELAY.idFromName("relay")).poke(),

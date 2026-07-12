@@ -56,7 +56,13 @@ app.get("/products/todo-performance", async (c) => {
       rows.push({ ...r, count: Number(r.count) });
     }
   }
-  rows.sort((a, b) => a.date.localeCompare(b.date) || a.event_type.localeCompare(b.event_type));
+  rows.sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      a.event_type.localeCompare(b.event_type) ||
+      a.channel.localeCompare(b.channel) ||
+      Number(a.is_test) - Number(b.is_test),
+  );
   return c.json(rows);
 });
 

@@ -22,11 +22,15 @@ interface OperationalRow {
   todo_id: string;
   user_id: string;
   timestamp: string;
+  channel: string;
+  is_test: boolean;
 }
 
 export interface PerformanceRow {
   date: string;
   event_type: string;
+  channel: string;
+  is_test: boolean;
   count: number;
 }
 
@@ -84,11 +88,29 @@ export async function readDay(env: Env, day: string): Promise<OperationalRow[]> 
 }
 
 function aggregateDay(day: string, rows: OperationalRow[]): PerformanceRow[] {
-  const counts = new Map<string, number>();
-  for (const row of rows) counts.set(row.event_type, (counts.get(row.event_type) ?? 0) + 1);
-  return [...counts.entries()]
-    .map(([event_type, count]) => ({ date: day, event_type, count }))
-    .sort((a, b) => a.event_type.localeCompare(b.event_type));
+  // One count per (event_type, channel, is_test) — the dimensions consumers
+  // slice by: real usage per channel, test volume kept separate.
+  const counts = new Map<string, PerformanceRow>();
+  for (const row of rows) {
+    const key = `${row.event_type} ${row.channel} ${row.is_test}`;
+    const entry = counts.get(key);
+    if (entry) entry.count += 1;
+    else {
+      counts.set(key, {
+        date: day,
+        event_type: row.event_type,
+        channel: row.channel,
+        is_test: row.is_test,
+        count: 1,
+      });
+    }
+  }
+  return [...counts.values()].sort(
+    (a, b) =>
+      a.event_type.localeCompare(b.event_type) ||
+      a.channel.localeCompare(b.channel) ||
+      Number(a.is_test) - Number(b.is_test),
+  );
 }
 
 async function writeDayParquet(env: Env, day: string, agg: PerformanceRow[]): Promise<void> {
@@ -97,6 +119,8 @@ async function writeDayParquet(env: Env, day: string, agg: PerformanceRow[]): Pr
     columnData: [
       { name: "date", data: agg.map((r) => r.date), type: "STRING" },
       { name: "event_type", data: agg.map((r) => r.event_type), type: "STRING" },
+      { name: "channel", data: agg.map((r) => r.channel), type: "STRING" },
+      { name: "is_test", data: agg.map((r) => r.is_test), type: "BOOLEAN" },
       { name: "count", data: agg.map((r) => r.count), type: "INT32" },
     ],
   });
